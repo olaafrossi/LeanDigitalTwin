@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 42de771d80d26fd4986e0f9cef34dd8a
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/RenderFeatures/MultiObjectOutline/URP Documentation
+    Blur Sample/BlurRP/BlurRenderPass.cs
+  uploadId: 863564

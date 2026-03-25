@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: c8d522f7b6b0fbf4c86d5a7c73dc9e67
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/UIPrefabs/Scripts/OverlayButtonScaler.cs
+  uploadId: 863564

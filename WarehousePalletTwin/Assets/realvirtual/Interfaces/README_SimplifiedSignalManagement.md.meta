@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 3da0ec8b8fec42642a9c36a98b5ee2c1
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/Interfaces/README_SimplifiedSignalManagement.md
+  uploadId: 863564

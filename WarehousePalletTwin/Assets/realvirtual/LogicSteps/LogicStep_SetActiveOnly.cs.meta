@@ -1,0 +1,9 @@
+fileFormatVersion: 2
+guid: f8fa814d9e6e88d43a30f24ad19bc784
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/LogicSteps/LogicStep_SetActiveOnly.cs
+  uploadId: 863564

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f0cb46cb6b1bfc6478d01c733c0a08b8
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/Resources/Icons/MaterialIcons/Editor/realvirtual.materialicons.editor.asmdef
+  uploadId: 863564

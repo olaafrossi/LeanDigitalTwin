@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 914a43d4b4282f34f8e5e19a060c6eb3
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/Interfaces/SignalCatcher.cs
+  uploadId: 863564

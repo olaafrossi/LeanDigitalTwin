@@ -1,0 +1,32 @@
+{
+    "name": "realvirtual.interfaces.opencommissioning.editor",
+    "rootNamespace": "realvirtual.opencommissioning.Editor",
+    "references": [
+        "realvirtual.base",
+        "realvirtual.editor",
+        "realvirtual.interfaces.opencommissioning",
+        "NaughtyAttributes.Core",
+        "NaughtyAttributes.Editor",
+        "OC",
+        "OC.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "REALVIRTUAL_OPENCOMMISSIONING"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.open-commissioning.core",
+            "expression": "",
+            "define": "REALVIRTUAL_OPENCOMMISSIONING"
+        }
+    ],
+    "noEngineReferences": false
+}

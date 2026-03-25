@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: b8028e3ff5090bb498dbb914126ae8f9
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/Scenes/TestPerformanceDrives.unity
+  uploadId: 863564

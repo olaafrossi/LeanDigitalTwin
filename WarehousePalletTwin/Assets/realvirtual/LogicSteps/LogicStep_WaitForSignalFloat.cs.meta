@@ -1,0 +1,9 @@
+fileFormatVersion: 2
+guid: ab3ccfe9ee0d2ce439f696f180bbb65c
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/LogicSteps/LogicStep_WaitForSignalFloat.cs
+  uploadId: 863564

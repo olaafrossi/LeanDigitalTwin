@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 8f90a0df7865cc7419c67a8fb7e7fd27
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/StaticTools/SceneTools.cs
+  uploadId: 863564

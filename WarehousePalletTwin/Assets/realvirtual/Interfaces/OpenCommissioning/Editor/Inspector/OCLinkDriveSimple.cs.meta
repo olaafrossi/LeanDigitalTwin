@@ -1,0 +1,10 @@
+﻿fileFormatVersion: 2
+guid: 3b32f948e3594cff876f8de2bf84b1b9
+timeCreated: 1762451078
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/Interfaces/OpenCommissioning/Editor/Inspector/OCLinkDriveSimple.cs
+  uploadId: 863564

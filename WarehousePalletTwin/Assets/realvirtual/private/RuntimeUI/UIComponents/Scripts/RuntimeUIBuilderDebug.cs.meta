@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 3014846c453b6f7409fa4de8a48c938a
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/RuntimeUI/UIComponents/Scripts/RuntimeUIBuilderDebug.cs
+  uploadId: 863564

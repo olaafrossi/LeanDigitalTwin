@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: fd41a473de8fc2e42b3a31aa9d99ffc2
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/Interfaces/OpenCommissioning/Editor/realvirtual.interfaces.opencommissioning.editor.asmdef
+  uploadId: 863564

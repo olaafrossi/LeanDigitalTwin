@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: bd09ea422d834124da2a42570bca7cd4
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/Editor/ToolbarOverlayExtensions/README.md
+  uploadId: 863564

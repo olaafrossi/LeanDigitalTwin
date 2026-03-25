@@ -1,0 +1,26 @@
+{
+    "name": "realvirtual.interfaces.opencommissioning",
+    "rootNamespace": "realvirtual.opencommissioning",
+    "references": [
+        "realvirtual.base",
+        "NaughtyAttributes.Core",
+        "OC"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "REALVIRTUAL_OPENCOMMISSIONING"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.open-commissioning.core",
+            "expression": "",
+            "define": "REALVIRTUAL_OPENCOMMISSIONING"
+        }
+    ],
+    "noEngineReferences": false
+}

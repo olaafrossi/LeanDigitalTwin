@@ -1,0 +1,9 @@
+fileFormatVersion: 2
+guid: 4177432056db09b41b7e3b563d4b8c81
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/MCP/Attributes/McpParamAttribute.cs
+  uploadId: 863564

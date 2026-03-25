@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9c7394100b6fe5b40bf57d5cf04ded95
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/Resources/Icons/MaterialIcons/Fonts/MaterialIcons-Regular.codepoints.txt
+  uploadId: 863564

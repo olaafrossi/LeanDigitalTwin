@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 1624c466b4ee64d46a64aee4051a0957
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/Editor/QuickEdit/QuickEditContext.cs
+  uploadId: 863564

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 51ddfbe148e87714782dff9a896f71b3
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/Interfaces/OpenCommissioning/DemoOpenCommissioning.unity
+  uploadId: 863564

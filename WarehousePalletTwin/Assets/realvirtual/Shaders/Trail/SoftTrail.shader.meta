@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: abf3a1bfeeb927d47af4627a758cfcdc
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/Shaders/Trail/SoftTrail.shader
+  uploadId: 863564

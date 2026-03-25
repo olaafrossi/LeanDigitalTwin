@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: d85c269c85ee4d0419858ed8eab47099
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/RuntimeUI/UIComponents/Prefabs/FloatingMenu/Dropdown.prefab
+  uploadId: 863564

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 2734b336cbb0c5c4ea3f3789917bff3e
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 303030
+  packageName: realvirtual.io Digital Twin Starter 6
+  packageVersion: 6.0.10-8590
+  assetPath: Assets/realvirtual/private/RuntimeUI/UIComponents/Scripts/rvUIContent/rvUIMenuButton.cs
+  uploadId: 863564
