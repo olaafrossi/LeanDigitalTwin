@@ -316,6 +316,8 @@ namespace LeanCell
 
         private void CompletePickResult()
         {
+            Debug.Log($"[LeanCell] Worker {WorkerID}: picking result, stationMU={(stationMU != null ? stationMU.name : "null")}");
+
             realvirtual.MU mu = stationMU;
             stationMU = null;
 
@@ -325,18 +327,20 @@ namespace LeanCell
                 GrabMU(mu);
             }
 
-            AssignedStation.WorkerLeft();
+            if (AssignedStation != null)
+                AssignedStation.WorkerLeft();
 
             if (IsLastWorker && SinkDropPoint != null)
             {
                 // Last worker delivers to Sink
                 NavigateTo(SinkDropPoint.position);
                 EnterState(WorkerState.WalkingToSink);
+                Debug.Log($"[LeanCell] Worker {WorkerID}: heading to sink with {(mu != null ? mu.name : "nothing")}");
             }
             else
             {
                 // Place at station OutputPoint for next worker, then return to idle
-                if (mu != null && AssignedStation.OutputPoint != null)
+                if (mu != null && AssignedStation != null && AssignedStation.OutputPoint != null)
                 {
                     DropMUAt(mu, AssignedStation.OutputPoint.position);
                 }
@@ -349,6 +353,7 @@ namespace LeanCell
                 if (IdlePosition != null)
                     NavigateTo(IdlePosition.position);
                 EnterState(WorkerState.Idle);
+                Debug.Log($"[LeanCell] Worker {WorkerID}: cycle done, returning to idle");
             }
         }
 

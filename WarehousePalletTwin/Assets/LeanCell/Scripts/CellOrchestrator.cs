@@ -225,11 +225,17 @@ namespace LeanCell
             muStates.Remove(mu);
         }
 
-        /// <summary>Called by Worker 1 when they pick the MU from conveyor. Resumes belt.</summary>
+        /// <summary>Called by Worker 0 when they pick the MU from conveyor end. Resumes belt.</summary>
         public void NotifyWorker1PickedUp()
         {
-            muAtSensor = null;
-            ResumeConveyor();
+            // Don't clear muAtSensor — it may reference a DIFFERENT MU waiting at the sensor.
+            // Just unblock the conveyor so new MUs can move.
+            if (conveyorBlocked)
+            {
+                conveyorBlocked = false;
+                LeanCellEvents.FireConveyorUnblocked();
+                Debug.Log("[LeanCell] Orchestrator: Worker 0 picked up, conveyor unblocked");
+            }
         }
 
         private void StopConveyor()
