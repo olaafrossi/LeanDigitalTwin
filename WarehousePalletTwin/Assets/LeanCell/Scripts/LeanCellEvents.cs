@@ -23,6 +23,17 @@ namespace LeanCell
         public static event Action<int, WorkerState, WorkerState> OnWorkerStateChanged; // workerID, oldState, newState
         public static event Action<int, float> OnWorkerMovedDistance;                    // workerID, distanceDelta
 
+        // Robot events
+        public static event Action<realvirtual.MU> OnRobotCycleStart;      // robot begins pick
+        public static event Action<realvirtual.MU> OnRobotCycleComplete;   // robot placed MU on conveyor
+
+        // Conveyor events
+        public static event Action OnConveyorBlocked;                       // sensor detects MU but Worker 1 busy
+        public static event Action OnConveyorUnblocked;                     // Worker 1 picks up, conveyor resumes
+
+        // Worker pickup signal
+        public static event Action<int, realvirtual.MU> OnMUReadyAtPickup; // workerID, MU ready at their pickup point
+
         // Waste events
         public static event Action<WasteType, WasteEvent> OnWasteDetected;
 
@@ -30,7 +41,12 @@ namespace LeanCell
         public static event Action OnParametersChanged;
 
         // Fire methods
-        public static void FireMUCreated(realvirtual.MU mu) => OnMUCreated?.Invoke(mu);
+        public static void FireMUCreated(realvirtual.MU mu)
+        {
+            int count = OnMUCreated != null ? OnMUCreated.GetInvocationList().Length : 0;
+            UnityEngine.Debug.Log($"[LeanCell] FireMUCreated: {mu.name}, {count} subscriber(s)");
+            OnMUCreated?.Invoke(mu);
+        }
         public static void FireMUCompleted(realvirtual.MU mu) => OnMUCompleted?.Invoke(mu);
         public static void FireMUDefective(realvirtual.MU mu, int stationIndex) => OnMUDefective?.Invoke(mu, stationIndex);
 
@@ -40,6 +56,12 @@ namespace LeanCell
 
         public static void FireWorkerStateChanged(int workerID, WorkerState oldState, WorkerState newState) => OnWorkerStateChanged?.Invoke(workerID, oldState, newState);
         public static void FireWorkerMovedDistance(int workerID, float distance) => OnWorkerMovedDistance?.Invoke(workerID, distance);
+
+        public static void FireRobotCycleStart(realvirtual.MU mu) => OnRobotCycleStart?.Invoke(mu);
+        public static void FireRobotCycleComplete(realvirtual.MU mu) => OnRobotCycleComplete?.Invoke(mu);
+        public static void FireConveyorBlocked() => OnConveyorBlocked?.Invoke();
+        public static void FireConveyorUnblocked() => OnConveyorUnblocked?.Invoke();
+        public static void FireMUReadyAtPickup(int workerID, realvirtual.MU mu) => OnMUReadyAtPickup?.Invoke(workerID, mu);
 
         public static void FireWasteDetected(WasteType type, WasteEvent evt) => OnWasteDetected?.Invoke(type, evt);
 
@@ -58,6 +80,11 @@ namespace LeanCell
             OnStationIdle = null;
             OnWorkerStateChanged = null;
             OnWorkerMovedDistance = null;
+            OnRobotCycleStart = null;
+            OnRobotCycleComplete = null;
+            OnConveyorBlocked = null;
+            OnConveyorUnblocked = null;
+            OnMUReadyAtPickup = null;
             OnWasteDetected = null;
             OnParametersChanged = null;
         }

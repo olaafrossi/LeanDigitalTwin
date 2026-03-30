@@ -12,15 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c822b5544397a241ab44a40721ffa56, type: 3}
   m_Name: Preset_ExcessInventory
   m_EditorClassIdentifier: Assembly-CSharp::LeanCell.ScenarioPreset
-  PresetName: Excess Inventory
-  Description: Batch size 3, fast Source rate
-  TaktTime: 8
-  BatchSize: 3
+  PresetName: Blocked S2
+  Description: "Station 2 bottleneck \u2014 30s takt, S2 at 60s. Waiting waste downstream."
+  TaktTime: 30
   DefectRate: 0
-  FlowMode: 0
   ActiveWorkerCount: 3
-  MaxWIP: 4
-  Station1CycleTime: 8
-  Station2CycleTime: 8
-  Station3CycleTime: 8
-  Station4CycleTime: 8
+  MaxWIP: 5
+  Station1CycleTime: 25
+  Station2CycleTime: 60
+  Station3CycleTime: 25

@@ -9,17 +9,14 @@ namespace LeanCell
         [TextArea] public string Description;
 
         [Header("Global Parameters")]
-        public float TaktTime = 35f;
-        public int BatchSize = 1;
+        public float TaktTime = 30f;
         public float DefectRate = 0f;
-        public FlowMode FlowMode = FlowMode.Push;
         public int ActiveWorkerCount = 3;
         public int MaxWIP = 5;
 
-        [Header("Per-Station Cycle Times (4 stations)")]
-        public float Station1CycleTime = 30f;
-        public float Station2CycleTime = 30f;
-        public float Station3CycleTime = 30f;
-        public float Station4CycleTime = 30f;
+        [Header("Per-Station Cycle Times (3 stations)")]
+        public float Station1CycleTime = 25f;
+        public float Station2CycleTime = 25f;
+        public float Station3CycleTime = 25f;
     }
 }

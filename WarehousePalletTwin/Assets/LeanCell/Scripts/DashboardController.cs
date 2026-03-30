@@ -1,36 +1,34 @@
 using UnityEngine;
+using UnityEngine.UI;
 using TMPro;
 
 namespace LeanCell
 {
     /// <summary>
-    /// Main dashboard UI controller. Updates metrics at 2Hz.
-    /// Attach to the Dashboard Canvas.
+    /// Top Status Rail — glanceable simulation state at a glance.
+    /// v2: sim state dot, clock, bottleneck, throughput, waste score, defect count.
     /// </summary>
     public class DashboardController : MonoBehaviour
     {
-        [Header("Metric Displays")]
-        public TextMeshProUGUI ThroughputText;
-        public TextMeshProUGUI CycleTimeText;
-        public TextMeshProUGUI TaktTimeText;
-        public TextMeshProUGUI WIPText;
-        public TextMeshProUGUI WasteScoreText;
-        public TextMeshProUGUI UtilizationText;
+        [Header("Sim State")]
+        public Image SimStateDot;
+        public TextMeshProUGUI SimStateText;
+        public Color RunningColor = new Color(0f, 0.78f, 0.33f);  // green
+        public Color PausedColor = new Color(1f, 0.75f, 0f);       // amber
+        public Color StoppedColor = new Color(0.5f, 0.5f, 0.5f);   // gray
 
-        [Header("Waste Bar Chart")]
-        public RectTransform[] WasteBars; // 7 bars, one per waste type
-        public float MaxBarHeight = 200f;
-
-        [Header("Event Log")]
-        public TextMeshProUGUI[] EventLogLines; // 5 lines for recent events
-
-        [Header("Clock")]
+        [Header("Metrics")]
         public TextMeshProUGUI ClockText;
+        public TextMeshProUGUI BottleneckText;
+        public TextMeshProUGUI ThroughputText;
+        public TextMeshProUGUI WasteScoreText;
+        public TextMeshProUGUI DefectCountText;
+        public TextMeshProUGUI WIPText;
 
         private float updateInterval = 0.5f;
         private float nextUpdateTime;
 
-        // Smooth display values (lerp toward actual)
+        // Smooth display values
         private float displayThroughput;
         private float displayWasteScore;
 
@@ -39,104 +37,88 @@ namespace LeanCell
             if (Time.time < nextUpdateTime) return;
             nextUpdateTime = Time.time + updateInterval;
 
+            UpdateSimState();
             UpdateMetrics();
-            UpdateWasteBars();
-            UpdateEventLog();
             UpdateClock();
+        }
+
+        private void UpdateSimState()
+        {
+            var manager = LeanCellManager.Instance;
+            if (manager == null) return;
+
+            bool running = manager.IsRunning;
+            bool paused = Time.timeScale == 0f;
+
+            Color dotColor;
+            string stateLabel;
+
+            if (paused)
+            {
+                dotColor = PausedColor;
+                stateLabel = "PAUSED";
+            }
+            else if (running)
+            {
+                dotColor = RunningColor;
+                stateLabel = "RUNNING";
+            }
+            else
+            {
+                dotColor = StoppedColor;
+                stateLabel = "STOPPED";
+            }
+
+            if (SimStateDot != null) SimStateDot.color = dotColor;
+            if (SimStateText != null) SimStateText.text = stateLabel;
         }
 
         private void UpdateMetrics()
         {
             var manager = LeanCellManager.Instance;
             var tracker = WasteTracker.Instance;
-            var clock = SimulationClock.Instance;
             if (manager == null) return;
 
-            // Lerp toward actual values for smooth animation
+            // Throughput
             displayThroughput = Mathf.Lerp(displayThroughput, manager.CompletedPerHour, Time.deltaTime * 3f);
-            float wasteScore = tracker != null ? tracker.GetTotalWasteScore() : 0;
-            displayWasteScore = Mathf.Lerp(displayWasteScore, wasteScore, Time.deltaTime * 3f);
-
             if (ThroughputText != null)
                 ThroughputText.text = $"{displayThroughput:F0} pcs/hr";
 
-            if (TaktTimeText != null)
-                TaktTimeText.text = $"{manager.CurrentTaktTime:F0}s";
-
+            // WIP
             if (WIPText != null)
-                WIPText.text = $"{manager.CurrentWIP}";
-
-            if (WasteScoreText != null)
             {
-                WasteScoreText.text = $"{displayWasteScore:F0}/100";
-                WasteScoreText.color = displayWasteScore < 20
-                    ? WasteColors.ValueAdd
-                    : displayWasteScore < 50
-                        ? new Color(1f, 0.8f, 0f) // yellow
-                        : WasteColors.Waiting;    // red
+                WIPText.text = $"WIP: {manager.CurrentWIP}";
+                WIPText.color = manager.CurrentWIP <= manager.MaxWIP
+                    ? Color.white
+                    : new Color(1f, 0.3f, 0.3f);
             }
 
-            if (UtilizationText != null)
+            // Waste score
+            if (tracker != null)
             {
-                // Simple utilization: % of time workers are in Processing state
-                int activeWorkers = 0;
-                int processingWorkers = 0;
-                if (manager.Workers != null)
+                float wasteScore = tracker.GetTotalWasteScore();
+                displayWasteScore = Mathf.Lerp(displayWasteScore, wasteScore, Time.deltaTime * 3f);
+                if (WasteScoreText != null)
                 {
-                    foreach (var w in manager.Workers)
-                    {
-                        if (w != null && w.gameObject.activeSelf)
-                        {
-                            activeWorkers++;
-                            if (w.CurrentState == WorkerState.Processing)
-                                processingWorkers++;
-                        }
-                    }
+                    WasteScoreText.text = $"Waste: {displayWasteScore:F0}";
+                    WasteScoreText.color = displayWasteScore < 20
+                        ? WasteColors.ValueAdd
+                        : displayWasteScore < 50
+                            ? new Color(1f, 0.8f, 0f)
+                            : WasteColors.Waiting;
                 }
-                float util = activeWorkers > 0 ? (float)processingWorkers / activeWorkers * 100f : 0;
-                UtilizationText.text = $"{util:F0}%";
-            }
-        }
 
-        private void UpdateWasteBars()
-        {
-            var tracker = WasteTracker.Instance;
-            if (tracker == null || WasteBars == null) return;
-
-            for (int i = 0; i < WasteBars.Length && i < 7; i++)
-            {
-                if (WasteBars[i] == null) continue;
-                float score = tracker.WasteScores[i];
-                float height = Mathf.Lerp(0, MaxBarHeight, score / 100f);
-                var size = WasteBars[i].sizeDelta;
-                size.y = height;
-                WasteBars[i].sizeDelta = size;
-            }
-        }
-
-        private void UpdateEventLog()
-        {
-            var tracker = WasteTracker.Instance;
-            if (tracker == null || EventLogLines == null) return;
-
-            int eventCount = tracker.RecentEvents.Count;
-            for (int i = 0; i < EventLogLines.Length; i++)
-            {
-                if (EventLogLines[i] == null) continue;
-
-                int eventIndex = eventCount - 1 - i;
-                if (eventIndex >= 0)
+                // Bottleneck
+                if (BottleneckText != null)
                 {
-                    var evt = tracker.RecentEvents[eventIndex];
-                    EventLogLines[i].text = evt.Description;
-                    EventLogLines[i].color = WasteColors.GetColor(evt.Type);
-                    EventLogLines[i].gameObject.SetActive(true);
-                }
-                else
-                {
-                    EventLogLines[i].gameObject.SetActive(false);
+                    int bn = tracker.GetBottleneckStation();
+                    BottleneckText.text = $"Bottleneck: S{bn + 1}";
                 }
             }
+
+            // Defects
+            if (DefectCountText != null)
+                DefectCountText.text = $"Defects: {manager.TotalDefects}";
         }
 
         private void UpdateClock()

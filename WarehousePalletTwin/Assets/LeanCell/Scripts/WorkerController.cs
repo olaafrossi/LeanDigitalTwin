@@ -1,19 +1,26 @@
 using UnityEngine;
 using UnityEngine.AI;
-using System.Collections;
 
 namespace LeanCell
 {
-    [RequireComponent(typeof(NavMeshAgent))]
+    /// <summary>
+    /// Worker controller using Invoke-based state machine for realvirtual compatibility.
+    /// No Update/LateUpdate/coroutines — all timing via Invoke/InvokeRepeating.
+    /// </summary>
     public class WorkerController : MonoBehaviour
     {
         [Header("Identity")]
         public int WorkerID;
 
-        [Header("Assignment")]
-        public WorkStation[] AssignedStations;
-        public Transform SourcePickupPoint;
-        public Transform SinkDropPoint;
+        [Header("Assignment (v2: one station per worker)")]
+        public WorkStation AssignedStation;
+        public Transform PickupPoint;     // conveyor end for Worker 0, previous station OutputPoint for Workers 1/2
+        public Transform IdlePosition;    // where worker waits between cycles
+        public Transform SinkDropPoint;   // only used by last worker (Worker 2)
+        public bool IsLastWorker;         // Worker 2 delivers to Sink after processing
+
+        [Header("Orchestrator")]
+        public CellOrchestrator Orchestrator;
 
         [Header("Grip")]
         public realvirtual.Grip HandGrip;
@@ -35,29 +42,64 @@ namespace LeanCell
 
         private NavMeshAgent agent;
         private Animator animator;
-        private int currentStationIndex;
         private Vector3 lastPosition;
-        private float nextIdleCheckTime;
         private Material workerDotMat;
+        private realvirtual.MU pendingPickupMU;
+        private realvirtual.MU stationMU; // tracks MU during station processing
+        private bool initialized;
+        private bool useSimpleMovement; // fallback if NavMesh unavailable
+        private Vector3 moveTarget;
 
         private static readonly int IsWalking = Animator.StringToHash("IsWalking");
         private static readonly int IsWorking = Animator.StringToHash("IsWorking");
         private static readonly int IsCarrying = Animator.StringToHash("IsCarrying");
 
-        void Start()
+        void OnEnable()
         {
+            LeanCellEvents.OnMUReadyAtPickup += HandleMUReadyAtPickup;
+            Invoke(nameof(Initialize), 0.3f);
+        }
+
+        void OnDisable()
+        {
+            CancelInvoke();
+            LeanCellEvents.OnMUReadyAtPickup -= HandleMUReadyAtPickup;
+        }
+
+        private void Initialize()
+        {
+            if (initialized) return;
+            initialized = true;
+
             agent = GetComponent<NavMeshAgent>();
-            agent.stoppingDistance = StoppingDistance;
-            agent.speed = 1.2f;          // normal human walking pace
-            agent.acceleration = 2f;      // gentle acceleration
-            agent.angularSpeed = 120f;    // smooth turning
+            if (agent != null)
+            {
+                agent.stoppingDistance = StoppingDistance;
+                agent.speed = 1.2f;
+                agent.acceleration = 2f;
+                agent.angularSpeed = 120f;
+
+                // Try to place agent on NavMesh
+                if (!agent.isOnNavMesh)
+                {
+                    agent.Warp(transform.position);
+                    if (!agent.isOnNavMesh)
+                    {
+                        Debug.LogWarning($"[LeanCell] Worker {WorkerID}: NavMesh unavailable at {transform.position}, using simple movement");
+                        useSimpleMovement = true;
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[LeanCell] Worker {WorkerID}: no NavMeshAgent, using simple movement");
+                useSimpleMovement = true;
+            }
+
             animator = GetComponentInChildren<Animator>();
             lastPosition = transform.position;
-            currentStationIndex = 0;
 
-            Debug.Log($"[LeanCell] Worker {WorkerID}: NavMeshAgent speed set to {agent.speed}");
-
-            // Status dot above worker head (parented so it follows automatically)
+            // Status dot above worker head
             var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             dot.name = $"WorkerDot_{WorkerID}";
             dot.transform.SetParent(transform);
@@ -69,11 +111,33 @@ namespace LeanCell
             dot.GetComponent<Renderer>().material = workerDotMat;
 
             EnterState(WorkerState.Idle);
+
+            // Go to idle position at start
+            if (IdlePosition != null)
+                NavigateTo(IdlePosition.position);
+
+            // Start poll loop (replaces Update/LateUpdate)
+            InvokeRepeating(nameof(PollUpdate), 0.1f, 0.1f);
+            Debug.Log($"[LeanCell] Worker {WorkerID}: initialized at {transform.position}, simpleMove={useSimpleMovement}");
         }
 
-        void Update()
+        private void HandleMUReadyAtPickup(int workerID, realvirtual.MU mu)
         {
-            // Track distance
+            if (workerID != WorkerID) return;
+            if (currentState != WorkerState.Idle) return;
+
+            pendingPickupMU = mu;
+            distanceTraveledThisCycle = 0;
+            NavigateTo(PickupPoint.position);
+            EnterState(WorkerState.WalkingToPickup);
+            Debug.Log($"[LeanCell] Worker {WorkerID}: dispatched to pickup {mu.name}");
+        }
+
+        // === Polling (replaces Update/LateUpdate) ===
+
+        private void PollUpdate()
+        {
+            // Distance tracking
             float moved = Vector3.Distance(transform.position, lastPosition);
             if (moved > 0.01f)
             {
@@ -84,37 +148,33 @@ namespace LeanCell
 
             UpdateAnimator();
 
-            switch (currentState)
-            {
-                case WorkerState.Idle:
-                    HandleIdle();
-                    break;
-                case WorkerState.WalkingToPickup:
-                case WorkerState.WalkingToStation:
-                case WorkerState.WalkingToNextStation:
-                case WorkerState.WalkingToSink:
-                    HandleWalking();
-                    break;
-            }
-        }
-
-        void LateUpdate()
-        {
-            // MU follows worker with zero lag
+            // MU following (was LateUpdate)
             if (carriedMU != null)
-            {
                 carriedMU.transform.position = transform.position + Vector3.up * 1.2f;
-            }
 
             // Update worker dot color
             if (workerDotMat != null)
             {
                 workerDotMat.color = currentState switch
                 {
-                    WorkerState.Idle => WasteColors.Waiting,     // red = idle waste
-                    WorkerState.Processing => WasteColors.ValueAdd, // green = value add
-                    _ => Color.yellow                              // yellow = moving
+                    WorkerState.Idle => WasteColors.Waiting,
+                    WorkerState.Processing => WasteColors.ValueAdd,
+                    _ => Color.yellow
                 };
+            }
+
+            // Simple movement update
+            if (useSimpleMovement)
+                UpdateSimpleMovement();
+
+            // Walking arrival check
+            switch (currentState)
+            {
+                case WorkerState.WalkingToPickup:
+                case WorkerState.WalkingToStation:
+                case WorkerState.WalkingToSink:
+                    HandleWalking();
+                    break;
             }
         }
 
@@ -132,33 +192,31 @@ namespace LeanCell
             if (animator == null) return;
             bool walking = currentState == WorkerState.WalkingToPickup ||
                            currentState == WorkerState.WalkingToStation ||
-                           currentState == WorkerState.WalkingToNextStation ||
                            currentState == WorkerState.WalkingToSink;
             animator.SetBool(IsWalking, walking);
             animator.SetBool(IsWorking, currentState == WorkerState.Processing);
             animator.SetBool(IsCarrying, IsCarryingMU);
         }
 
-        private void HandleIdle()
-        {
-            if (AssignedStations == null || AssignedStations.Length == 0) return;
-            if (SourcePickupPoint == null) return;
-            if (Time.time < nextIdleCheckTime) return;
-
-            currentStationIndex = 0;
-            NavigateTo(SourcePickupPoint.position);
-            EnterState(WorkerState.WalkingToPickup);
-            distanceTraveledThisCycle = 0;
-            Debug.Log($"[LeanCell] Worker {WorkerID}: heading to Source");
-        }
+        // === Walking / arrival detection ===
 
         private void HandleWalking()
         {
+            if (useSimpleMovement)
+            {
+                if (Vector3.Distance(transform.position, moveTarget) <= StoppingDistance)
+                {
+                    OnArrivedAtDestination();
+                }
+                return;
+            }
+
+            if (agent == null || !agent.isOnNavMesh) return;
+
             if (agent.pathStatus == NavMeshPathStatus.PathInvalid)
             {
-                Debug.LogWarning($"[LeanCell] Worker {WorkerID}: path invalid");
-                nextIdleCheckTime = Time.time + 2f;
-                EnterState(WorkerState.Idle);
+                Debug.LogWarning($"[LeanCell] Worker {WorkerID}: path invalid, switching to simple movement");
+                useSimpleMovement = true;
                 return;
             }
 
@@ -174,159 +232,212 @@ namespace LeanCell
             switch (currentState)
             {
                 case WorkerState.WalkingToPickup:
-                    StartCoroutine(DoPickup());
+                    Debug.Log($"[LeanCell] Worker {WorkerID}: arrived at pickup");
+                    EnterState(WorkerState.PickingUp);
+                    Invoke(nameof(CompletePickup), PickPlaceDelay);
                     break;
                 case WorkerState.WalkingToStation:
-                case WorkerState.WalkingToNextStation:
-                    StartCoroutine(DoPlaceAndProcess());
+                    Debug.Log($"[LeanCell] Worker {WorkerID}: arrived at station");
+                    if (AssignedStation != null) AssignedStation.WorkerArrived(this);
+                    EnterState(WorkerState.Placing);
+                    Invoke(nameof(CompletePlacing), PickPlaceDelay);
                     break;
                 case WorkerState.WalkingToSink:
-                    StartCoroutine(DoDeliverToSink());
+                    Debug.Log($"[LeanCell] Worker {WorkerID}: arrived at sink");
+                    EnterState(WorkerState.Placing);
+                    Invoke(nameof(CompleteSinkDelivery), PickPlaceDelay);
                     break;
             }
         }
 
-        private IEnumerator DoPickup()
-        {
-            EnterState(WorkerState.PickingUp);
-            yield return new WaitForSeconds(PickPlaceDelay);
+        // === Invoke chain: Pickup ===
 
-            // Find nearest MU within range
-            realvirtual.MU nearestMU = null;
+        private void CompletePickup()
+        {
+            realvirtual.MU mu = pendingPickupMU;
+            pendingPickupMU = null;
+
+            if (mu == null)
+                mu = FindNearestMU();
+
+            if (mu == null)
+            {
+                Debug.LogWarning($"[LeanCell] Worker {WorkerID}: no MU found at pickup");
+                EnterState(WorkerState.Idle);
+                return;
+            }
+
+            GrabMU(mu);
+            Debug.Log($"[LeanCell] Worker {WorkerID}: picked up {mu.name}");
+
+            // Notify orchestrator that Worker 0 picked up from conveyor
+            if (WorkerID == 0 && Orchestrator != null)
+                Orchestrator.NotifyWorker1PickedUp();
+
+            // Navigate to assigned station
+            if (AssignedStation != null && AssignedStation.WorkPosition != null)
+            {
+                NavigateTo(AssignedStation.WorkPosition.position);
+                EnterState(WorkerState.WalkingToStation);
+            }
+            else
+            {
+                EnterState(WorkerState.Idle);
+            }
+        }
+
+        // === Invoke chain: Place and Process ===
+
+        private void CompletePlacing()
+        {
+            if (AssignedStation == null) return;
+
+            stationMU = carriedMU;
+            PlaceMUAtStation(stationMU, AssignedStation);
+            Debug.Log($"[LeanCell] Worker {WorkerID}: placed MU at {AssignedStation.StationName}");
+
+            EnterState(WorkerState.Processing);
+            AssignedStation.StartProcessing(stationMU);
+
+            // Wait for station cycle time then complete
+            Invoke(nameof(CompleteProcessing), AssignedStation.CycleTime);
+        }
+
+        private void CompleteProcessing()
+        {
+            if (AssignedStation == null) return;
+
+            AssignedStation.CompleteProcessing();
+            Debug.Log($"[LeanCell] Worker {WorkerID}: processing complete at {AssignedStation.StationName}");
+
+            EnterState(WorkerState.PickingResult);
+            Invoke(nameof(CompletePickResult), PickPlaceDelay);
+        }
+
+        private void CompletePickResult()
+        {
+            realvirtual.MU mu = stationMU;
+            stationMU = null;
+
+            if (mu != null)
+            {
+                ChangeMUColor(mu);
+                GrabMU(mu);
+            }
+
+            AssignedStation.WorkerLeft();
+
+            if (IsLastWorker && SinkDropPoint != null)
+            {
+                // Last worker delivers to Sink
+                NavigateTo(SinkDropPoint.position);
+                EnterState(WorkerState.WalkingToSink);
+            }
+            else
+            {
+                // Place at station OutputPoint for next worker, then return to idle
+                if (mu != null && AssignedStation.OutputPoint != null)
+                {
+                    DropMUAt(mu, AssignedStation.OutputPoint.position);
+                }
+                else
+                {
+                    DropMU();
+                }
+
+                // Walk back to idle position
+                if (IdlePosition != null)
+                    NavigateTo(IdlePosition.position);
+                EnterState(WorkerState.Idle);
+            }
+        }
+
+        // === Invoke chain: Sink delivery ===
+
+        private void CompleteSinkDelivery()
+        {
+            realvirtual.MU mu = carriedMU;
+            if (mu != null)
+            {
+                DropMU();
+                LeanCellEvents.FireMUCompleted(mu);
+                Debug.Log($"[LeanCell] Worker {WorkerID}: delivered {mu.name} to sink");
+                Destroy(mu.gameObject, 1f);
+            }
+
+            // Walk back to idle position
+            if (IdlePosition != null)
+                NavigateTo(IdlePosition.position);
+            EnterState(WorkerState.Idle);
+        }
+
+        // === Navigation ===
+
+        private void NavigateTo(Vector3 destination)
+        {
+            moveTarget = destination;
+            if (!useSimpleMovement && agent != null && agent.isOnNavMesh)
+                agent.SetDestination(destination);
+        }
+
+        private void UpdateSimpleMovement()
+        {
+            if (currentState != WorkerState.WalkingToPickup &&
+                currentState != WorkerState.WalkingToStation &&
+                currentState != WorkerState.WalkingToSink) return;
+
+            // Move at 1.2 m/s, poll runs every 0.1s → 0.12m per step
+            transform.position = Vector3.MoveTowards(
+                transform.position, moveTarget, 0.12f);
+
+            // Face movement direction
+            Vector3 dir = (moveTarget - transform.position);
+            dir.y = 0;
+            if (dir.sqrMagnitude > 0.01f)
+                transform.rotation = Quaternion.LookRotation(dir);
+        }
+
+        // === MU handling helpers ===
+
+        private realvirtual.MU FindNearestMU()
+        {
+            realvirtual.MU nearest = null;
             float nearestDist = 4f;
 
             var allMUs = FindObjectsByType<realvirtual.MU>(FindObjectsSortMode.None);
             foreach (var mu in allMUs)
             {
                 if (mu.transform.parent != null) continue;
-                if (mu.FixedBy != null) continue;
 
                 float dist = Vector3.Distance(transform.position, mu.transform.position);
                 if (dist < nearestDist)
                 {
                     nearestDist = dist;
-                    nearestMU = mu;
+                    nearest = mu;
                 }
             }
-
-            if (nearestMU == null)
-            {
-                nextIdleCheckTime = Time.time + 2f;
-                EnterState(WorkerState.Idle);
-                yield break;
-            }
-
-            // Grab it
-            GrabMU(nearestMU);
-
-            // Go to first station
-            if (AssignedStations.Length > 0 && AssignedStations[currentStationIndex] != null)
-            {
-                var station = AssignedStations[currentStationIndex];
-                if (station.IsOccupiedByWorker)
-                {
-                    nextIdleCheckTime = Time.time + 2f;
-                    EnterState(WorkerState.Idle);
-                    yield break;
-                }
-                NavigateTo(station.WorkPosition.position);
-                EnterState(WorkerState.WalkingToStation);
-            }
+            return nearest;
         }
-
-        private IEnumerator DoPlaceAndProcess()
-        {
-            var station = AssignedStations[currentStationIndex];
-            station.WorkerArrived(this);
-
-            // Place MU at station
-            EnterState(WorkerState.Placing);
-            yield return new WaitForSeconds(PickPlaceDelay);
-
-            realvirtual.MU mu = carriedMU;
-            PlaceMUAtStation(mu, station);
-
-            // Process (worker stands at station, MU sits on table)
-            EnterState(WorkerState.Processing);
-            station.StartProcessing(mu);
-
-            yield return new WaitForSeconds(station.CycleTime);
-
-            station.CompleteProcessing();
-
-            // Pick result back up
-            EnterState(WorkerState.PickingResult);
-            yield return new WaitForSeconds(PickPlaceDelay);
-
-            if (mu != null)
-            {
-                // Change MU color to show it's been processed
-                ChangeMUColor(mu, currentStationIndex);
-                GrabMU(mu);
-            }
-
-            station.WorkerLeft();
-
-            // Move to next station or sink
-            currentStationIndex++;
-            if (currentStationIndex < AssignedStations.Length)
-            {
-                NavigateTo(AssignedStations[currentStationIndex].WorkPosition.position);
-                EnterState(WorkerState.WalkingToNextStation);
-            }
-            else
-            {
-                if (SinkDropPoint != null)
-                {
-                    NavigateTo(SinkDropPoint.position);
-                    EnterState(WorkerState.WalkingToSink);
-                }
-                else
-                {
-                    DropMU();
-                    currentStationIndex = 0;
-                    EnterState(WorkerState.Idle);
-                }
-            }
-        }
-
-        private IEnumerator DoDeliverToSink()
-        {
-            EnterState(WorkerState.Placing);
-            yield return new WaitForSeconds(PickPlaceDelay);
-
-            realvirtual.MU mu = carriedMU;
-            if (mu != null)
-            {
-                DropMU();
-                LeanCellEvents.FireMUCompleted(mu);
-                Destroy(mu.gameObject, 1f);
-            }
-
-            currentStationIndex = 0;
-            EnterState(WorkerState.Idle);
-        }
-
-        // === MU handling helpers ===
 
         private void GrabMU(realvirtual.MU mu)
         {
-            // Disable physics and realvirtual MU logic while carrying
-            var rb = mu.GetComponent<Rigidbody>();
+            var rb = mu.GetComponentInChildren<Rigidbody>();
             if (rb != null) { rb.isKinematic = true; rb.linearVelocity = Vector3.zero; }
 
-            // Disable colliders so MU doesn't interact with anything while carried
             foreach (var col in mu.GetComponentsInChildren<Collider>())
                 col.enabled = false;
 
-            // Disable MU component so realvirtual doesn't fight us
             mu.enabled = false;
-
-            // DON'T parent to worker (causes NavMesh issues). Just track reference.
             mu.transform.SetParent(null);
             carriedMU = mu;
 
-            Debug.Log($"[LeanCell] Worker {WorkerID}: Grabbed {mu.name}");
+            // Clear output flag on previous station
+            if (WorkerID > 0 && WorkerID - 1 < LeanCellManager.Instance.Stations.Length)
+            {
+                var prevStation = LeanCellManager.Instance.Stations[WorkerID - 1];
+                if (prevStation != null)
+                    prevStation.ClearOutput();
+            }
         }
 
         private void PlaceMUAtStation(realvirtual.MU mu, WorkStation station)
@@ -334,20 +445,17 @@ namespace LeanCell
             if (mu == null) return;
 
             mu.transform.SetParent(null);
-            // Place on the workbench: station's own position (not WorkPosition) + table height
             Vector3 tableTop = station.transform.position + Vector3.up * 1.2f;
             mu.transform.position = tableTop;
 
-            var rb = mu.GetComponent<Rigidbody>();
+            var rb = mu.GetComponentInChildren<Rigidbody>();
             if (rb != null) rb.isKinematic = true;
 
-            // Re-enable colliders and MU at station
             foreach (var col in mu.GetComponentsInChildren<Collider>())
                 col.enabled = true;
             mu.enabled = true;
 
             carriedMU = null;
-            Debug.Log($"[LeanCell] Worker {WorkerID}: Placed at {station.StationName}");
         }
 
         private void DropMU()
@@ -357,31 +465,42 @@ namespace LeanCell
             carriedMU.transform.SetParent(null);
             carriedMU.transform.position = transform.position + Vector3.up * 0.3f;
 
-            // Re-enable everything
             foreach (var col in carriedMU.GetComponentsInChildren<Collider>())
                 col.enabled = true;
             carriedMU.enabled = true;
 
-            var rb = carriedMU.GetComponent<Rigidbody>();
+            var rb = carriedMU.GetComponentInChildren<Rigidbody>();
             if (rb != null) rb.isKinematic = false;
 
             carriedMU = null;
         }
 
-        private void ChangeMUColor(realvirtual.MU mu, int stationIndex)
+        private void DropMUAt(realvirtual.MU mu, Vector3 position)
         {
-            // MU gets progressively greener as it's processed through more stations
+            if (mu == null) return;
+
+            mu.transform.SetParent(null);
+            mu.transform.position = position + Vector3.up * 0.5f;
+
+            foreach (var col in mu.GetComponentsInChildren<Collider>())
+                col.enabled = true;
+            mu.enabled = true;
+
+            var rb = mu.GetComponentInChildren<Rigidbody>();
+            if (rb != null) rb.isKinematic = true; // stay put at output point
+
+            carriedMU = null;
+        }
+
+        private void ChangeMUColor(realvirtual.MU mu)
+        {
             var renderer = mu.GetComponentInChildren<Renderer>();
             if (renderer == null) return;
 
-            float progress = (float)(stationIndex + 1) / AssignedStations.Length;
+            // Color based on station progress: S1 = blue-ish, S2 = teal, S3 = green
+            float progress = (float)(AssignedStation.StationIndex + 1) / 3f;
             Color c = Color.Lerp(new Color(0.3f, 0.5f, 0.8f), WasteColors.ValueAdd, progress);
             renderer.material.color = c;
-        }
-
-        private void NavigateTo(Vector3 destination)
-        {
-            agent.SetDestination(destination);
         }
     }
 }

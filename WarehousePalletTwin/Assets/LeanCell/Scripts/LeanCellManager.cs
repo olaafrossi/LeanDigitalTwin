@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace LeanCell
@@ -16,15 +15,16 @@ namespace LeanCell
         WalkingToSink
     }
 
+    /// <summary>
+    /// Central simulation manager. Uses Invoke-based polling for realvirtual compatibility.
+    /// </summary>
     public class LeanCellManager : MonoBehaviour
     {
         public static LeanCellManager Instance { get; private set; }
 
         [Header("Simulation Parameters")]
-        public float CurrentTaktTime = 35f;
-        public int CurrentBatchSize = 1;
+        public float CurrentTaktTime = 30f;
         public float CurrentDefectRate = 0f;
-        public FlowMode CurrentFlowMode = FlowMode.Push;
         public int MaxWIP = 5;
         public int ActiveWorkerCount = 3;
 
@@ -41,14 +41,18 @@ namespace LeanCell
 
         [Header("Metrics (Read-Only)")]
         [SerializeField] private int totalCompleted;
+        [SerializeField] private int totalDefects;
         [SerializeField] private float completedPerHour;
         [SerializeField] private int currentWIP;
 
         public int TotalCompleted => totalCompleted;
+        public int TotalDefects => totalDefects;
         public float CompletedPerHour => completedPerHour;
         public int CurrentWIP => currentWIP;
 
         private bool isRunning;
+        private bool initialized;
+        public bool IsRunning => isRunning;
 
         void Awake()
         {
@@ -61,19 +65,30 @@ namespace LeanCell
             if (Instance == this) Instance = null;
         }
 
-        void Start()
-        {
-            StartSimulation();
-        }
-
         void OnEnable()
         {
             LeanCellEvents.OnMUCompleted += HandleMUCompleted;
+            LeanCellEvents.OnMUDefective += HandleMUDefective;
+            Invoke(nameof(Initialize), 0.5f);
         }
 
         void OnDisable()
         {
+            CancelInvoke();
             LeanCellEvents.OnMUCompleted -= HandleMUCompleted;
+            LeanCellEvents.OnMUDefective -= HandleMUDefective;
+        }
+
+        private void Initialize()
+        {
+            if (initialized) return;
+            initialized = true;
+
+            StartSimulation();
+
+            // Start metrics polling (replaces Update)
+            InvokeRepeating(nameof(PollMetrics), 1f, 0.5f);
+            Debug.Log("[LeanCell] Manager: initialized, simulation started");
         }
 
         public void StartSimulation()
@@ -81,24 +96,29 @@ namespace LeanCell
             if (ActivePreset != null)
                 ApplyPreset(ActivePreset);
 
-            Clock.StartClock();
+            if (Clock != null)
+                Clock.StartClock();
             isRunning = true;
 
             if (Source != null)
+            {
                 Source.Enabled = true;
+                Source.AutomaticGeneration = true;
+                Source.Interval = CurrentTaktTime;
+            }
         }
 
         public void PauseSimulation()
         {
             isRunning = false;
-            Clock.Pause();
+            if (Clock != null) Clock.Pause();
             Time.timeScale = 0f;
         }
 
         public void ResumeSimulation()
         {
             isRunning = true;
-            Clock.Resume();
+            if (Clock != null) Clock.Resume();
             Time.timeScale = 1f;
         }
 
@@ -106,9 +126,10 @@ namespace LeanCell
         {
             isRunning = false;
             totalCompleted = 0;
+            totalDefects = 0;
             completedPerHour = 0;
             currentWIP = 0;
-            Clock.StartClock();
+            if (Clock != null) Clock.StartClock();
             Time.timeScale = 1f;
         }
 
@@ -116,62 +137,53 @@ namespace LeanCell
         {
             ActivePreset = preset;
             CurrentTaktTime = preset.TaktTime;
-            CurrentBatchSize = preset.BatchSize;
             CurrentDefectRate = preset.DefectRate;
-            CurrentFlowMode = preset.FlowMode;
             MaxWIP = preset.MaxWIP;
             ActiveWorkerCount = preset.ActiveWorkerCount;
 
-            // Apply per-station cycle times
             float[] cycleTimes = {
                 preset.Station1CycleTime,
                 preset.Station2CycleTime,
-                preset.Station3CycleTime,
-                preset.Station4CycleTime
+                preset.Station3CycleTime
             };
 
-            for (int i = 0; i < Stations.Length && i < 4; i++)
+            for (int i = 0; i < Stations.Length && i < 3; i++)
             {
                 if (Stations[i] != null)
                     Stations[i].SetCycleTime(cycleTimes[i]);
             }
 
-            // Activate/deactivate workers
             for (int i = 0; i < Workers.Length; i++)
             {
                 if (Workers[i] != null)
                     Workers[i].gameObject.SetActive(i < ActiveWorkerCount);
             }
 
-            // Update source interval based on takt
             if (Source != null)
                 Source.Interval = CurrentTaktTime;
 
             LeanCellEvents.FireParametersChanged();
         }
 
-        void Update()
+        /// <summary>Replaces Update() — polls WIP count and throughput.</summary>
+        private void PollMetrics()
         {
             if (!isRunning) return;
 
-            // Count current WIP
             currentWIP = CountActiveWIP();
 
-            // Compute throughput
-            if (Clock.ElapsedSimTime > 0)
+            if (Clock != null && Clock.ElapsedSimTime > 0)
                 completedPerHour = totalCompleted / (Clock.ElapsedSimTime / 3600f);
         }
 
         private int CountActiveWIP()
         {
             int count = 0;
-            // Count MUs at stations
             foreach (var station in Stations)
             {
                 if (station != null && station.HasMU)
                     count++;
             }
-            // Count MUs being carried by workers
             foreach (var worker in Workers)
             {
                 if (worker != null && worker.gameObject.activeSelf && worker.IsCarryingMU)
@@ -183,6 +195,11 @@ namespace LeanCell
         private void HandleMUCompleted(realvirtual.MU mu)
         {
             totalCompleted++;
+        }
+
+        private void HandleMUDefective(realvirtual.MU mu, int stationIndex)
+        {
+            totalDefects++;
         }
 
         public float GetStationCycleTime(int stationIndex)

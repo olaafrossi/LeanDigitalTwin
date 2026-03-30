@@ -12,15 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c822b5544397a241ab44a40721ffa56, type: 3}
   m_Name: Preset_OptimizedCell
   m_EditorClassIdentifier: Assembly-CSharp::LeanCell.ScenarioPreset
-  PresetName: Optimized Cell
-  Description: Balanced stations, Pull mode, minimal waste
-  TaktTime: 12
-  BatchSize: 1
+  PresetName: Normal
+  Description: "Balanced line \u2014 30s takt, 25s per station, no defects"
+  TaktTime: 30
   DefectRate: 0
-  FlowMode: 1
   ActiveWorkerCount: 3
   MaxWIP: 5
-  Station1CycleTime: 8
-  Station2CycleTime: 8
-  Station3CycleTime: 8
-  Station4CycleTime: 8
+  Station1CycleTime: 25
+  Station2CycleTime: 25
+  Station3CycleTime: 25

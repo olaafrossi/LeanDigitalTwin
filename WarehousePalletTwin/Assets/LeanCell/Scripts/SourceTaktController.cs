@@ -4,7 +4,7 @@ namespace LeanCell
 {
     /// <summary>
     /// Bridges Source.cs to takt time. Adjusts Source.Interval based on
-    /// LeanCellManager parameters. In Pull mode, disables auto-generation.
+    /// LeanCellManager parameters. v2: always Push mode (robot-fed).
     /// </summary>
     public class SourceTaktController : MonoBehaviour
     {
@@ -19,7 +19,6 @@ namespace LeanCell
         {
             LeanCellEvents.OnParametersChanged += HandleParametersChanged;
 
-            // Subscribe to source creation events to forward to our event bus
             if (source != null)
                 source.EventMUCreated.AddListener(OnSourceCreatedMU);
         }
@@ -37,30 +36,15 @@ namespace LeanCell
             var manager = LeanCellManager.Instance;
             if (manager == null || source == null) return;
 
-            if (manager.CurrentFlowMode == FlowMode.Push)
-            {
-                source.Interval = manager.CurrentTaktTime;
-                source.Enabled = true;
-            }
-            else // Pull mode
-            {
-                source.Interval = 0;
-                source.Enabled = false;
-            }
+            source.Interval = manager.CurrentTaktTime;
+            source.Enabled = true;
+            source.AutomaticGeneration = true;
         }
 
         private void OnSourceCreatedMU(realvirtual.MU mu)
         {
+            Debug.Log($"[LeanCell] Source created MU: {mu.name}");
             LeanCellEvents.FireMUCreated(mu);
-        }
-
-        /// <summary>
-        /// Called by workers in Pull mode to request a new MU.
-        /// </summary>
-        public void RequestMU()
-        {
-            if (source != null)
-                source.Generate();
         }
     }
 }

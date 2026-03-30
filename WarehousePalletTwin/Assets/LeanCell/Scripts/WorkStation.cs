@@ -2,14 +2,18 @@ using UnityEngine;
 
 namespace LeanCell
 {
+    /// <summary>
+    /// WorkStation with Invoke-based polling for realvirtual compatibility.
+    /// </summary>
     public class WorkStation : MonoBehaviour
     {
         [Header("Configuration")]
         public int StationIndex;
         public string StationName = "Station";
-        public float CycleTime = 10f; // shorter for visible demo
+        public float CycleTime = 10f;
         public Transform WorkPosition;
         public Transform MUSlot;
+        public Transform OutputPoint;
 
         [Header("realvirtual References")]
         public realvirtual.Sensor EntrySensor;
@@ -24,10 +28,12 @@ namespace LeanCell
         [SerializeField] private bool isOccupiedByWorker;
         [SerializeField] private float idleStartTime;
         [SerializeField] private float processStartTime;
-        [SerializeField] private float processProgress; // 0 to 1
+        [SerializeField] private float processProgress;
+        [SerializeField] private bool hasOutputMU;
 
         public bool IsProcessing => isProcessing;
         public bool HasMU => hasMU;
+        public bool HasOutputMU => hasOutputMU;
         public bool IsOccupiedByWorker => isOccupiedByWorker;
         public float IdleStartTime => idleStartTime;
         public float ProcessProgress => processProgress;
@@ -36,34 +42,43 @@ namespace LeanCell
         private GameObject progressBar;
         private Transform progressFill;
         private Renderer stationRenderer;
+        private bool initialized;
 
-        void Start()
+        void OnEnable()
         {
+            Invoke(nameof(Initialize), 0.3f);
+        }
+
+        void OnDisable()
+        {
+            CancelInvoke();
+        }
+
+        private void Initialize()
+        {
+            if (initialized) return;
+            initialized = true;
+
             idleStartTime = Time.time;
             stationRenderer = GetComponentInChildren<Renderer>();
 
-            // Set station color
             if (stationRenderer != null)
-            {
                 stationRenderer.material.color = StationColor;
-            }
 
-            // Create a simple progress bar above the station
             CreateProgressBar();
-
-            // Create floating station label
             CreateStationLabel();
-
-            // Create status dot (shows station state)
             CreateStatusDot();
+
+            // Start polling (replaces Update)
+            InvokeRepeating(nameof(PollStation), 0.5f, 0.1f);
         }
 
-        void Update()
+        /// <summary>Replaces Update() — polls sensor, updates progress bar and status dot.</summary>
+        private void PollStation()
         {
             if (EntrySensor != null)
                 hasMU = EntrySensor.Occupied;
 
-            // Update progress
             if (isProcessing)
             {
                 processProgress = (Time.time - processStartTime) / CycleTime;
@@ -76,7 +91,6 @@ namespace LeanCell
                 UpdateProgressBar(0);
             }
 
-            // Update status dot color
             UpdateStatusDot();
 
             // Idle waste detection
@@ -92,7 +106,6 @@ namespace LeanCell
 
         private void CreateProgressBar()
         {
-            // Background bar (dark)
             progressBar = GameObject.CreatePrimitive(PrimitiveType.Cube);
             progressBar.name = $"ProgressBar_{StationName}";
             progressBar.transform.SetParent(transform);
@@ -104,20 +117,19 @@ namespace LeanCell
             bgMat.color = new Color(0.15f, 0.15f, 0.15f, 0.8f);
             progressBar.GetComponent<Renderer>().material = bgMat;
 
-            // Fill bar (colored)
             var fill = GameObject.CreatePrimitive(PrimitiveType.Cube);
             fill.name = "Fill";
             fill.transform.SetParent(progressBar.transform);
-            fill.transform.localPosition = new Vector3(-0.5f, 0, -0.01f); // start from left
-            fill.transform.localScale = new Vector3(0, 1.1f, 1.1f); // initially zero width
+            fill.transform.localPosition = new Vector3(-0.5f, 0, -0.01f);
+            fill.transform.localScale = new Vector3(0, 1.1f, 1.1f);
             Destroy(fill.GetComponent<Collider>());
 
             var fillMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-            fillMat.color = WasteColors.ValueAdd; // green
+            fillMat.color = WasteColors.ValueAdd;
             fill.GetComponent<Renderer>().material = fillMat;
 
             progressFill = fill.transform;
-            progressBar.SetActive(false); // hidden until processing starts
+            progressBar.SetActive(false);
         }
 
         private void UpdateProgressBar(float progress)
@@ -129,12 +141,10 @@ namespace LeanCell
                 progressBar.SetActive(true);
                 if (progressFill != null)
                 {
-                    // Scale the fill bar from 0 to 1 on X axis
                     var s = progressFill.localScale;
                     s.x = progress;
                     progressFill.localScale = s;
 
-                    // Move it so it grows from the left
                     var p = progressFill.localPosition;
                     p.x = -0.5f + (progress * 0.5f);
                     progressFill.localPosition = p;
@@ -180,7 +190,6 @@ namespace LeanCell
             {
                 if (currentMU != null)
                 {
-                    // Visual: turn MU red for defect
                     var r = currentMU.GetComponentInChildren<Renderer>();
                     if (r != null) r.material.color = WasteColors.Defects;
 
@@ -189,11 +198,23 @@ namespace LeanCell
             }
 
             LeanCellEvents.FireProcessComplete(StationIndex, currentMU, actualTime);
+
+            if (OutputPoint != null && currentMU != null)
+            {
+                currentMU.transform.position = OutputPoint.position + Vector3.up * 0.5f;
+                hasOutputMU = true;
+            }
+
             currentMU = null;
             idleStartTime = Time.time;
         }
 
         public realvirtual.MU GetCurrentMU() => currentMU;
+
+        public void ClearOutput()
+        {
+            hasOutputMU = false;
+        }
 
         // === Visual elements ===
 
@@ -203,7 +224,6 @@ namespace LeanCell
 
         private void CreateStationLabel()
         {
-            // 3D text label floating above the workbench
             var labelGO = new GameObject($"Label_{StationName}");
             labelGO.transform.SetParent(transform);
             labelGO.transform.localPosition = new Vector3(0, 2f, 0);
@@ -216,8 +236,7 @@ namespace LeanCell
             tm.alignment = TextAlignment.Center;
             tm.color = Color.white;
 
-            // Make it face the camera
-            var billboard = labelGO.AddComponent<BillboardText>();
+            labelGO.AddComponent<BillboardText>();
         }
 
         private void CreateStatusDot()
@@ -241,29 +260,39 @@ namespace LeanCell
 
             Color c;
             if (isProcessing)
-                c = WasteColors.ValueAdd; // green = working
+                c = WasteColors.ValueAdd;
             else if (isOccupiedByWorker)
-                c = Color.cyan; // worker here but not processing yet
+                c = Color.cyan;
             else if (hasMU)
-                c = WasteColors.Waiting; // red = MU waiting, no worker
+                c = WasteColors.Waiting;
             else
-                c = Color.gray; // idle, nothing happening
+                c = Color.gray;
 
             statusDotMat.color = c;
         }
     }
 
     /// <summary>
-    /// Simple billboard that makes a TextMesh always face the camera.
+    /// Billboard that makes a TextMesh face the camera. Uses Invoke for realvirtual compat.
     /// </summary>
     public class BillboardText : MonoBehaviour
     {
-        void LateUpdate()
+        void OnEnable()
+        {
+            InvokeRepeating(nameof(FaceCamera), 0.1f, 0.1f);
+        }
+
+        void OnDisable()
+        {
+            CancelInvoke();
+        }
+
+        private void FaceCamera()
         {
             if (Camera.main != null)
             {
                 transform.LookAt(Camera.main.transform);
-                transform.Rotate(0, 180, 0); // flip so text isn't mirrored
+                transform.Rotate(0, 180, 0);
             }
         }
     }

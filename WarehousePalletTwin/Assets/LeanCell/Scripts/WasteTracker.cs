@@ -6,16 +6,16 @@ namespace LeanCell
 {
     /// <summary>
     /// Central waste detection engine. Detects all 7 LEAN wastes and computes
-    /// normalized scores (0-100) per type. Single file with regions per waste type.
+    /// normalized scores (0-100) per type. v2: adapted for robot-fed sequential flow.
     /// </summary>
     public class WasteTracker : MonoBehaviour
     {
         public static WasteTracker Instance { get; private set; }
 
         [Header("Thresholds")]
-        public float WaitingThreshold = 3f;       // seconds before idle counts as waste
-        public float MotionMultiplier = 1.2f;      // distance > optimal * this = waste
-        public float TransportMultiplier = 1.3f;   // MU path > optimal * this = waste
+        public float WaitingThreshold = 3f;
+        public float MotionMultiplier = 1.2f;
+        public float TransportMultiplier = 1.3f;
         public float OverProcessingMultiplier = 1.1f;
 
         [Header("Scores (Read-Only)")]
@@ -55,6 +55,7 @@ namespace LeanCell
             LeanCellEvents.OnMUCreated += HandleMUCreated;
             LeanCellEvents.OnMUCompleted += HandleMUCompleted;
             LeanCellEvents.OnMUDefective += HandleMUDefective;
+            LeanCellEvents.OnConveyorBlocked += HandleConveyorBlocked;
         }
 
         void OnDisable()
@@ -66,15 +67,13 @@ namespace LeanCell
             LeanCellEvents.OnMUCreated -= HandleMUCreated;
             LeanCellEvents.OnMUCompleted -= HandleMUCompleted;
             LeanCellEvents.OnMUDefective -= HandleMUDefective;
+            LeanCellEvents.OnConveyorBlocked -= HandleConveyorBlocked;
         }
 
         void Start()
         {
             var manager = LeanCellManager.Instance;
-            if (manager != null)
-                stationIdleTimes = new float[manager.Stations.Length];
-            else
-                stationIdleTimes = new float[4];
+            stationIdleTimes = new float[manager != null ? manager.Stations.Length : 3];
 
             StartCoroutine(PollInventory());
             StartCoroutine(PollOverproduction());
@@ -99,16 +98,45 @@ namespace LeanCell
             return total / wasteScores.Length;
         }
 
+        /// <summary>Returns the waste type with the highest score.</summary>
+        public WasteType GetDominantWaste()
+        {
+            int maxIdx = 0;
+            for (int i = 1; i < wasteScores.Length; i++)
+            {
+                if (wasteScores[i] > wasteScores[maxIdx])
+                    maxIdx = i;
+            }
+            return (WasteType)maxIdx;
+        }
+
+        /// <summary>Returns the station index with the highest average cycle time (bottleneck).</summary>
+        public int GetBottleneckStation()
+        {
+            var manager = LeanCellManager.Instance;
+            if (manager == null) return 0;
+
+            int bottleneck = 0;
+            float maxCycle = 0;
+            for (int i = 0; i < manager.Stations.Length; i++)
+            {
+                if (manager.Stations[i] != null && manager.Stations[i].CycleTime > maxCycle)
+                {
+                    maxCycle = manager.Stations[i].CycleTime;
+                    bottleneck = i;
+                }
+            }
+            return bottleneck;
+        }
+
         #region Waiting Detection
 
         private void HandleWorkerStateChanged(int workerID, WorkerState oldState, WorkerState newState)
         {
-            // Worker enters idle -> start tracking
             if (newState == WorkerState.Idle)
             {
                 workerIdleStart[workerID] = Time.time;
             }
-            // Worker leaves idle -> check if waited too long
             else if (oldState == WorkerState.Idle && workerIdleStart.ContainsKey(workerID))
             {
                 float waitTime = Time.time - workerIdleStart[workerID];
@@ -126,10 +154,16 @@ namespace LeanCell
                 workerIdleStart.Remove(workerID);
             }
 
-            // Track distance per cycle: reset when cycle starts
+            // Reset distance tracking when worker starts a new pickup cycle
             if (newState == WorkerState.WalkingToPickup)
             {
                 workerCycleDistance[workerID] = 0;
+            }
+
+            // Check motion waste when worker returns to idle (cycle complete)
+            if (newState == WorkerState.Idle && oldState != WorkerState.Idle)
+            {
+                CheckMotionWaste(workerID);
             }
         }
 
@@ -144,14 +178,15 @@ namespace LeanCell
             workerCycleDistance[workerID] += distance;
         }
 
-        // Called when worker completes a cycle (delivers to sink)
         private void CheckMotionWaste(int workerID)
         {
             if (!workerCycleDistance.ContainsKey(workerID)) return;
 
             float traveled = workerCycleDistance[workerID];
-            // Estimate optimal distance (straight lines between stations)
-            float optimal = EstimateOptimalDistance();
+            if (traveled < 0.5f) return; // skip trivial cycles
+
+            // Optimal = straight line from pickup to station + station to idle/output
+            float optimal = EstimateOptimalDistanceForWorker(workerID);
             float threshold = optimal * MotionMultiplier;
 
             if (traveled > threshold)
@@ -161,31 +196,31 @@ namespace LeanCell
                 {
                     Duration = excess,
                     Severity = excess > 5f ? WasteSeverity.High : WasteSeverity.Medium,
-                    Description = $"Worker {workerID} excess motion: {excess:F1}m (traveled {traveled:F1}m, optimal {optimal:F1}m)"
+                    Description = $"Worker {workerID} excess motion: {excess:F1}m"
                 };
                 RecordWaste(evt);
                 wasteScores[(int)WasteType.Motion] = Mathf.Min(100f, wasteScores[(int)WasteType.Motion] + excess * 5f);
             }
         }
 
-        private float EstimateOptimalDistance()
+        private float EstimateOptimalDistanceForWorker(int workerID)
         {
-            // Sum distances between sequential station WorkPositions
             var manager = LeanCellManager.Instance;
-            if (manager == null || manager.Stations.Length < 2) return 10f;
+            if (manager == null || manager.Workers == null) return 5f;
 
-            float total = 0;
-            for (int i = 0; i < manager.Stations.Length - 1; i++)
-            {
-                if (manager.Stations[i] != null && manager.Stations[i + 1] != null &&
-                    manager.Stations[i].WorkPosition != null && manager.Stations[i + 1].WorkPosition != null)
-                {
-                    total += Vector3.Distance(
-                        manager.Stations[i].WorkPosition.position,
-                        manager.Stations[i + 1].WorkPosition.position);
-                }
-            }
-            return Mathf.Max(total, 5f);
+            if (workerID >= manager.Workers.Length) return 5f;
+            var worker = manager.Workers[workerID];
+            if (worker == null || worker.AssignedStation == null) return 5f;
+
+            float dist = 0f;
+            // Pickup point to station
+            if (worker.PickupPoint != null && worker.AssignedStation.WorkPosition != null)
+                dist += Vector3.Distance(worker.PickupPoint.position, worker.AssignedStation.WorkPosition.position);
+            // Station to idle position (return trip)
+            if (worker.AssignedStation.WorkPosition != null && worker.IdlePosition != null)
+                dist += Vector3.Distance(worker.AssignedStation.WorkPosition.position, worker.IdlePosition.position);
+
+            return Mathf.Max(dist, 2f);
         }
 
         #endregion
@@ -221,9 +256,22 @@ namespace LeanCell
         private void HandleStationIdle(int stationIndex)
         {
             if (stationIndex >= 0 && stationIndex < stationIdleTimes.Length)
-            {
                 stationIdleTimes[stationIndex] = Time.time;
-            }
+        }
+
+        #endregion
+
+        #region Conveyor Blocked → Overproduction
+
+        private void HandleConveyorBlocked()
+        {
+            var evt = new WasteEvent(WasteType.Overproduction, Time.time)
+            {
+                Severity = WasteSeverity.High,
+                Description = "Conveyor blocked — robot produced when downstream busy"
+            };
+            RecordWaste(evt);
+            wasteScores[(int)WasteType.Overproduction] = Mathf.Min(100f, wasteScores[(int)WasteType.Overproduction] + 20f);
         }
 
         #endregion
@@ -254,7 +302,6 @@ namespace LeanCell
                 }
                 else
                 {
-                    // Decay score when within limits
                     wasteScores[(int)WasteType.Inventory] = Mathf.Max(0, wasteScores[(int)WasteType.Inventory] - 2f);
                 }
             }
@@ -293,12 +340,7 @@ namespace LeanCell
         }
 
         private void HandleMUCreated(realvirtual.MU mu) => totalProduced++;
-        private void HandleMUCompleted(realvirtual.MU mu)
-        {
-            totalConsumed++;
-            // Also check motion waste for the worker who delivered
-            // (motion check happens per-cycle)
-        }
+        private void HandleMUCompleted(realvirtual.MU mu) => totalConsumed++;
 
         #endregion
 
@@ -333,7 +375,7 @@ namespace LeanCell
 
         void Update()
         {
-            // Gradual score decay for time-based wastes
+            // Gradual score decay
             float decayRate = Time.deltaTime * 0.5f;
             wasteScores[(int)WasteType.Waiting] = Mathf.Max(0, wasteScores[(int)WasteType.Waiting] - decayRate);
             wasteScores[(int)WasteType.Motion] = Mathf.Max(0, wasteScores[(int)WasteType.Motion] - decayRate);

@@ -5,27 +5,29 @@ using TMPro;
 namespace LeanCell
 {
     /// <summary>
-    /// Interactive control panel for the simulation.
-    /// Attach to the Controls Canvas.
+    /// Right Command Rail — all interactive controls for the simulation.
+    /// v2: station cycle sliders, scenario buttons (not dropdown), no flow mode toggle.
     /// </summary>
     public class ControlPanel : MonoBehaviour
     {
-        [Header("Takt Time")]
+        [Header("Line Rate (Takt Time)")]
         public Slider TaktTimeSlider;
         public TextMeshProUGUI TaktTimeValueText;
         public float MinTakt = 20f;
-        public float MaxTakt = 60f;
+        public float MaxTakt = 120f;
 
-        [Header("Flow Mode")]
-        public Toggle FlowModeToggle; // on = Pull, off = Push
-        public TextMeshProUGUI FlowModeLabel;
+        [Header("Station Cycle Time Sliders")]
+        public Slider[] StationCycleSliders; // 3 sliders, one per station
+        public TextMeshProUGUI[] StationCycleValueTexts; // 3 labels
 
         [Header("Defect Rate")]
         public Slider DefectRateSlider;
         public TextMeshProUGUI DefectRateValueText;
 
-        [Header("Scenario")]
-        public TMP_Dropdown ScenarioDropdown;
+        [Header("Scenario Buttons")]
+        public Button[] ScenarioButtons; // 4 buttons
+        public Color ActiveScenarioColor = Color.white;
+        public Color InactiveScenarioColor = new Color(0.6f, 0.6f, 0.6f);
 
         [Header("Simulation Control")]
         public Button PlayButton;
@@ -37,9 +39,11 @@ namespace LeanCell
         public TextMeshProUGUI WasteToggleLabel;
         public WasteVisualizer WasteVisualizer;
 
+        private int activeScenarioIndex = -1;
+
         void Start()
         {
-            // Wire up listeners
+            // Takt time slider
             if (TaktTimeSlider != null)
             {
                 TaktTimeSlider.minValue = MinTakt;
@@ -47,44 +51,50 @@ namespace LeanCell
                 TaktTimeSlider.onValueChanged.AddListener(OnTaktTimeChanged);
             }
 
-            if (FlowModeToggle != null)
-                FlowModeToggle.onValueChanged.AddListener(OnFlowModeChanged);
+            // Station cycle sliders
+            if (StationCycleSliders != null)
+            {
+                for (int i = 0; i < StationCycleSliders.Length; i++)
+                {
+                    if (StationCycleSliders[i] != null)
+                    {
+                        StationCycleSliders[i].minValue = 10f;
+                        StationCycleSliders[i].maxValue = 90f;
+                        int stationIndex = i; // capture for closure
+                        StationCycleSliders[i].onValueChanged.AddListener(
+                            (value) => OnStationCycleChanged(stationIndex, value));
+                    }
+                }
+            }
 
+            // Defect rate slider
             if (DefectRateSlider != null)
             {
                 DefectRateSlider.minValue = 0f;
-                DefectRateSlider.maxValue = 0.15f;
+                DefectRateSlider.maxValue = 0.35f;
                 DefectRateSlider.onValueChanged.AddListener(OnDefectRateChanged);
             }
 
-            if (ScenarioDropdown != null)
-                ScenarioDropdown.onValueChanged.AddListener(OnScenarioSelected);
+            // Scenario buttons
+            if (ScenarioButtons != null)
+            {
+                for (int i = 0; i < ScenarioButtons.Length; i++)
+                {
+                    if (ScenarioButtons[i] != null)
+                    {
+                        int idx = i;
+                        ScenarioButtons[i].onClick.AddListener(() => OnScenarioSelected(idx));
+                    }
+                }
+            }
 
+            // Sim control buttons
             if (PlayButton != null) PlayButton.onClick.AddListener(OnPlay);
             if (PauseButton != null) PauseButton.onClick.AddListener(OnPause);
             if (ResetButton != null) ResetButton.onClick.AddListener(OnReset);
             if (WasteToggleButton != null) WasteToggleButton.onClick.AddListener(OnWasteToggle);
 
-            // Populate scenario dropdown
-            PopulateScenarios();
-
-            // Sync UI to current values
             SyncToManager();
-        }
-
-        private void PopulateScenarios()
-        {
-            if (ScenarioDropdown == null) return;
-            var manager = LeanCellManager.Instance;
-            if (manager == null || manager.AvailablePresets == null) return;
-
-            ScenarioDropdown.ClearOptions();
-            foreach (var preset in manager.AvailablePresets)
-            {
-                if (preset != null)
-                    ScenarioDropdown.options.Add(new TMP_Dropdown.OptionData(preset.PresetName));
-            }
-            ScenarioDropdown.RefreshShownValue();
         }
 
         public void SyncToManager()
@@ -97,10 +107,19 @@ namespace LeanCell
             if (TaktTimeValueText != null)
                 TaktTimeValueText.text = $"{manager.CurrentTaktTime:F0}s";
 
-            if (FlowModeToggle != null)
-                FlowModeToggle.SetIsOnWithoutNotify(manager.CurrentFlowMode == FlowMode.Pull);
-            if (FlowModeLabel != null)
-                FlowModeLabel.text = manager.CurrentFlowMode == FlowMode.Pull ? "Pull" : "Push";
+            // Sync station sliders
+            if (StationCycleSliders != null)
+            {
+                for (int i = 0; i < StationCycleSliders.Length && i < manager.Stations.Length; i++)
+                {
+                    if (StationCycleSliders[i] != null && manager.Stations[i] != null)
+                    {
+                        StationCycleSliders[i].SetValueWithoutNotify(manager.Stations[i].CycleTime);
+                        if (StationCycleValueTexts != null && i < StationCycleValueTexts.Length && StationCycleValueTexts[i] != null)
+                            StationCycleValueTexts[i].text = $"{manager.Stations[i].CycleTime:F0}s";
+                    }
+                }
+            }
 
             if (DefectRateSlider != null)
                 DefectRateSlider.SetValueWithoutNotify(manager.CurrentDefectRate);
@@ -118,14 +137,16 @@ namespace LeanCell
             LeanCellEvents.FireParametersChanged();
         }
 
-        private void OnFlowModeChanged(bool isPull)
+        private void OnStationCycleChanged(int stationIndex, float value)
         {
             var manager = LeanCellManager.Instance;
             if (manager == null) return;
-            manager.CurrentFlowMode = isPull ? FlowMode.Pull : FlowMode.Push;
-            if (FlowModeLabel != null)
-                FlowModeLabel.text = isPull ? "Pull" : "Push";
-            LeanCellEvents.FireParametersChanged();
+            if (stationIndex < manager.Stations.Length && manager.Stations[stationIndex] != null)
+            {
+                manager.Stations[stationIndex].SetCycleTime(value);
+                if (StationCycleValueTexts != null && stationIndex < StationCycleValueTexts.Length && StationCycleValueTexts[stationIndex] != null)
+                    StationCycleValueTexts[stationIndex].text = $"{value:F0}s";
+            }
         }
 
         private void OnDefectRateChanged(float value)
@@ -137,42 +158,59 @@ namespace LeanCell
                 DefectRateValueText.text = $"{value * 100:F0}%";
         }
 
-        private void OnScenarioSelected(int index)
+        public void OnScenarioSelected(int index)
         {
             var manager = LeanCellManager.Instance;
             if (manager == null || manager.AvailablePresets == null) return;
             if (index >= 0 && index < manager.AvailablePresets.Length)
             {
                 manager.ApplyPreset(manager.AvailablePresets[index]);
+                activeScenarioIndex = index;
+                UpdateScenarioButtonHighlights();
                 SyncToManager();
             }
         }
 
-        private void OnPlay()
+        private void UpdateScenarioButtonHighlights()
         {
-            var manager = LeanCellManager.Instance;
-            if (manager != null) manager.StartSimulation();
+            if (ScenarioButtons == null) return;
+            for (int i = 0; i < ScenarioButtons.Length; i++)
+            {
+                if (ScenarioButtons[i] == null) continue;
+                var text = ScenarioButtons[i].GetComponentInChildren<TextMeshProUGUI>();
+                if (text != null)
+                    text.color = (i == activeScenarioIndex) ? ActiveScenarioColor : InactiveScenarioColor;
+            }
         }
 
-        private void OnPause()
+        public void OnPlay()
+        {
+            var manager = LeanCellManager.Instance;
+            if (manager == null) return;
+            if (manager.IsRunning)
+                return;
+            manager.ResumeSimulation();
+        }
+
+        public void OnPause()
         {
             var manager = LeanCellManager.Instance;
             if (manager != null) manager.PauseSimulation();
         }
 
-        private void OnReset()
+        public void OnReset()
         {
             var manager = LeanCellManager.Instance;
             if (manager != null) manager.ResetSimulation();
         }
 
-        private void OnWasteToggle()
+        public void OnWasteToggle()
         {
             if (WasteVisualizer != null)
             {
                 WasteVisualizer.ToggleOverlay();
                 if (WasteToggleLabel != null)
-                    WasteToggleLabel.text = WasteVisualizer.OverlayActive ? "Hide Waste" : "Show Waste";
+                    WasteToggleLabel.text = WasteVisualizer.OverlayActive ? "OFF" : "ON";
             }
         }
     }

@@ -9,6 +9,7 @@ namespace LeanCell
     /// <summary>
     /// Renders waste overlays: floor zone highlights, contextual labels,
     /// and the "thermal camera" desaturation effect.
+    /// v2: dominant-waste-per-station opacity model, auto-enable after first S1 complete.
     /// </summary>
     public class WasteVisualizer : MonoBehaviour
     {
@@ -18,29 +19,30 @@ namespace LeanCell
         [Header("Thermal Camera Effect")]
         public Volume PostProcessVolume;
         public float TransitionDuration = 0.5f;
-        public float DesaturationAmount = -70f; // color grading saturation when overlay is on
+        public float DesaturationAmount = -70f;
 
-        [Header("Floor Zone Highlights")]
-        public MeshRenderer[] StationFloorZones; // 4 quads, one per station
+        [Header("Floor Zone Highlights (3 stations)")]
+        public MeshRenderer[] StationFloorZones;
 
-        [Header("Contextual Labels")]
-        public TextMeshPro[] StationWasteLabels; // 4 world-space TMP, floating above stations
+        [Header("Contextual Labels (3 stations)")]
+        public TextMeshPro[] StationWasteLabels;
 
         [Header("Legend")]
-        public GameObject LegendPanel; // TIMWOOD legend strip on dashboard
+        public GameObject LegendPanel;
+
+        [Header("Auto-Enable")]
+        public bool AutoEnableAfterFirstProcess = true;
 
         private float currentTransition = 0f;
         private bool transitioningIn;
         private bool transitioningOut;
         private ColorAdjustments colorAdjustments;
+        private bool autoEnabled;
 
         void Start()
         {
-            // Get post-processing color adjustments
             if (PostProcessVolume != null && PostProcessVolume.profile != null)
-            {
                 PostProcessVolume.profile.TryGet(out colorAdjustments);
-            }
 
             // Initialize floor zones to transparent
             if (StationFloorZones != null)
@@ -73,11 +75,23 @@ namespace LeanCell
         void OnEnable()
         {
             LeanCellEvents.OnWasteDetected += HandleWasteDetected;
+            LeanCellEvents.OnProcessComplete += HandleProcessComplete;
         }
 
         void OnDisable()
         {
             LeanCellEvents.OnWasteDetected -= HandleWasteDetected;
+            LeanCellEvents.OnProcessComplete -= HandleProcessComplete;
+        }
+
+        private void HandleProcessComplete(int stationIndex, realvirtual.MU mu, float actualTime)
+        {
+            // Auto-enable waste overlay after first MU completes Station 1
+            if (AutoEnableAfterFirstProcess && !autoEnabled && stationIndex == 0 && !OverlayActive)
+            {
+                autoEnabled = true;
+                ToggleOverlay();
+            }
         }
 
         public void ToggleOverlay()
@@ -95,6 +109,16 @@ namespace LeanCell
                 transitioningOut = true;
                 transitioningIn = false;
             }
+        }
+
+        /// <summary>Force overlay off (used by reset).</summary>
+        public void DisableOverlay()
+        {
+            if (!OverlayActive) return;
+            OverlayActive = false;
+            autoEnabled = false;
+            transitioningOut = true;
+            transitioningIn = false;
         }
 
         void Update()
@@ -135,7 +159,6 @@ namespace LeanCell
         private void ApplyDesaturation(float t)
         {
             if (colorAdjustments == null) return;
-            // Lerp saturation from 0 (normal) to DesaturationAmount (desaturated)
             colorAdjustments.saturation.value = Mathf.Lerp(0f, DesaturationAmount, t);
         }
 
@@ -147,28 +170,43 @@ namespace LeanCell
             var manager = LeanCellManager.Instance;
             if (manager == null) return;
 
-            // Color each station's floor zone based on dominant waste
+            // For each station, find dominant waste and render at full intensity.
+            // Other wastes render at 20% opacity.
             for (int i = 0; i < manager.Stations.Length && i < StationFloorZones.Length; i++)
             {
                 if (StationFloorZones[i] == null || manager.Stations[i] == null) continue;
 
-                // Determine dominant waste color for this station
                 WasteType dominant = GetDominantWasteForStation(i, tracker);
                 Color zoneColor = dominant == (WasteType)(-1)
                     ? WasteColors.ValueAdd
                     : WasteColors.GetColor(dominant);
 
                 float totalWaste = tracker.GetTotalWasteScore();
-                float alpha = OverlayActive ? Mathf.Lerp(0.1f, 0.5f, totalWaste / 100f) * currentTransition : 0f;
+                float alpha = Mathf.Lerp(0.1f, 0.5f, totalWaste / 100f) * currentTransition;
                 zoneColor.a = alpha;
 
                 StationFloorZones[i].material.color = zoneColor;
+
+                // Update contextual label with dominant waste
+                if (i < StationWasteLabels.Length && StationWasteLabels[i] != null)
+                {
+                    if (dominant != (WasteType)(-1) && totalWaste > 5f)
+                    {
+                        StationWasteLabels[i].gameObject.SetActive(true);
+                        StationWasteLabels[i].text = WasteColors.GetLabel(dominant);
+                        // Dominant at full color, secondary would be at 20% — but we only show dominant label
+                        StationWasteLabels[i].color = WasteColors.GetColor(dominant);
+                    }
+                    else
+                    {
+                        StationWasteLabels[i].gameObject.SetActive(false);
+                    }
+                }
             }
         }
 
         private WasteType GetDominantWasteForStation(int stationIndex, WasteTracker tracker)
         {
-            // Find the most recent waste event for this station
             float maxScore = 0;
             WasteType dominant = (WasteType)(-1);
 
@@ -193,7 +231,6 @@ namespace LeanCell
         {
             if (!OverlayActive) return;
 
-            // Show contextual label at station
             if (evt.StationIndex >= 0 && evt.StationIndex < StationWasteLabels.Length)
             {
                 var label = StationWasteLabels[evt.StationIndex];

@@ -12,15 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c822b5544397a241ab44a40721ffa56, type: 3}
   m_Name: Preset_UnbalancedLine
   m_EditorClassIdentifier: Assembly-CSharp::LeanCell.ScenarioPreset
-  PresetName: Unbalanced Line
-  Description: Station 2 bottleneck at 60s cycle time
-  TaktTime: 12
-  BatchSize: 1
-  DefectRate: 0
-  FlowMode: 0
+  PresetName: Defect Burst
+  Description: "High defect rate \u2014 30s takt, 25s per station, 30% defects."
+  TaktTime: 30
+  DefectRate: 0.3
   ActiveWorkerCount: 3
   MaxWIP: 5
-  Station1CycleTime: 6
-  Station2CycleTime: 20
-  Station3CycleTime: 7
-  Station4CycleTime: 6
+  Station1CycleTime: 25
+  Station2CycleTime: 25
+  Station3CycleTime: 25

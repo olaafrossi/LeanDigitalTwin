@@ -12,15 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c822b5544397a241ab44a40721ffa56, type: 3}
   m_Name: Preset_Overproduction
   m_EditorClassIdentifier: Assembly-CSharp::LeanCell.ScenarioPreset
-  PresetName: Overproduction
-  Description: Source rate 2.4x demand
-  TaktTime: 20
-  BatchSize: 1
+  PresetName: Starved
+  Description: "Robot slow \u2014 90s takt, 25s per station. Workers idle."
+  TaktTime: 90
   DefectRate: 0
-  FlowMode: 0
   ActiveWorkerCount: 3
-  MaxWIP: 3
-  Station1CycleTime: 7
-  Station2CycleTime: 7
-  Station3CycleTime: 7
-  Station4CycleTime: 7
+  MaxWIP: 5
+  Station1CycleTime: 25
+  Station2CycleTime: 25
+  Station3CycleTime: 25
