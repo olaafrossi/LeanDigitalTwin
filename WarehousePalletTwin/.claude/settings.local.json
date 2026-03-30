@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "mcp__UnityMCP__manage_scene"
+      "mcp__UnityMCP__manage_scene",
+      "Skill(plan-design-review)",
+      "Skill(plan-design-review:*)"
     ]
   }
 }
