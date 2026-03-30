@@ -225,17 +225,16 @@ namespace LeanCell
             muStates.Remove(mu);
         }
 
-        /// <summary>Called by Worker 0 when they pick the MU from conveyor end. Resumes belt.</summary>
-        public void NotifyWorker1PickedUp()
+        /// <summary>Called by Worker 0 when they pick a specific MU from conveyor end.</summary>
+        public void NotifyWorker1PickedUp(realvirtual.MU pickedMU)
         {
-            // Don't clear muAtSensor — it may reference a DIFFERENT MU waiting at the sensor.
-            // Just unblock the conveyor so new MUs can move.
-            if (conveyorBlocked)
-            {
-                conveyorBlocked = false;
-                LeanCellEvents.FireConveyorUnblocked();
-                Debug.Log("[LeanCell] Orchestrator: Worker 0 picked up, conveyor unblocked");
-            }
+            // Only clear muAtSensor if the picked MU IS the one at the sensor
+            if (muAtSensor == pickedMU)
+                muAtSensor = null;
+
+            conveyorBlocked = false;
+            LeanCellEvents.FireConveyorUnblocked();
+            Debug.Log($"[LeanCell] Orchestrator: Worker 0 picked up {(pickedMU != null ? pickedMU.name : "null")}, conveyor ready");
         }
 
         private void StopConveyor()
@@ -263,6 +262,12 @@ namespace LeanCell
         public MUFlowState GetMUState(realvirtual.MU mu)
         {
             return muStates.TryGetValue(mu, out var state) ? state : MUFlowState.RobotPickup;
+        }
+
+        /// <summary>True if conveyor has no MUs in transit and is not blocked.</summary>
+        public bool CanAcceptConveyorMU()
+        {
+            return !conveyorBlocked && conveyorMUs.Count == 0 && muAtSensor == null;
         }
 
         /// <summary>Reset all tracking state.</summary>

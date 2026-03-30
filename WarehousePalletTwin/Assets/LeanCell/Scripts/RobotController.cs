@@ -2,13 +2,16 @@ using UnityEngine;
 
 namespace LeanCell
 {
-    public enum RobotState { Idle, Picking, MovingToPlace, Placing }
+    public enum RobotState { Idle, Picking, MovingToPlace, Placing, WaitingForConveyor }
 
     public class RobotController : MonoBehaviour
     {
         [Header("Waypoints")]
         public Transform PickTransform;
         public Transform PlaceTransform;
+
+        [Header("References")]
+        public CellOrchestrator Orchestrator;
 
         [Header("Timing")]
         public float GripDelay = 0.5f;
@@ -24,21 +27,36 @@ namespace LeanCell
         void OnEnable()
         {
             LeanCellEvents.OnMUCreated += HandleMUCreated;
+            LeanCellEvents.OnConveyorUnblocked += HandleConveyorUnblocked;
         }
 
         void OnDisable()
         {
             LeanCellEvents.OnMUCreated -= HandleMUCreated;
+            LeanCellEvents.OnConveyorUnblocked -= HandleConveyorUnblocked;
         }
 
         private void HandleMUCreated(realvirtual.MU mu)
         {
             if (currentState != RobotState.Idle)
             {
-                pendingMU = mu;
+                pendingMU = mu; // only keeps the latest — earlier ones stay at source
                 return;
             }
             BeginPick(mu);
+        }
+
+        /// <summary>When conveyor unblocks, try to place the held MU or pick next.</summary>
+        private void HandleConveyorUnblocked()
+        {
+            if (currentState == RobotState.WaitingForConveyor && currentMU != null)
+            {
+                // Conveyor cleared — proceed to place
+                currentState = RobotState.MovingToPlace;
+                currentMU.transform.position = PlaceTransform.position + Vector3.up * 0.1f;
+                Debug.Log($"[LeanCell] Robot: conveyor clear, moving {currentMU.name} to belt");
+                Invoke(nameof(CompletePlacement), PlaceDelay);
+            }
         }
 
         private void BeginPick(realvirtual.MU mu)
@@ -55,8 +73,6 @@ namespace LeanCell
             mu.transform.position = PickTransform.position;
 
             Debug.Log($"[LeanCell] Robot: picking {mu.name}");
-
-            // Schedule next step via Invoke
             Invoke(nameof(BeginMove), GripDelay);
         }
 
@@ -64,12 +80,20 @@ namespace LeanCell
         {
             if (currentMU == null) { currentState = RobotState.Idle; return; }
 
+            // Check if conveyor can accept an MU (not blocked, no MU in transit)
+            bool conveyorReady = Orchestrator == null || Orchestrator.CanAcceptConveyorMU();
+
+            if (!conveyorReady)
+            {
+                // Hold MU at pick position, wait for conveyor to clear
+                currentState = RobotState.WaitingForConveyor;
+                Debug.Log($"[LeanCell] Robot: holding {currentMU.name}, conveyor busy");
+                return;
+            }
+
             currentState = RobotState.MovingToPlace;
-            // Teleport MU to place position (arc animation deferred to later polish)
             currentMU.transform.position = PlaceTransform.position + Vector3.up * 0.1f;
-
             Debug.Log($"[LeanCell] Robot: moved {currentMU.name} to conveyor");
-
             Invoke(nameof(CompletePlacement), PlaceDelay);
         }
 
@@ -79,10 +103,8 @@ namespace LeanCell
 
             if (currentMU != null)
             {
-                // Place MU just above the PlaceTransform (should be on conveyor surface)
                 currentMU.transform.position = PlaceTransform.position;
 
-                // Re-enable in correct order: colliders first, then MU component, then physics
                 foreach (var col in currentMU.GetComponentsInChildren<Collider>())
                     col.enabled = true;
                 currentMU.enabled = true;
@@ -97,7 +119,7 @@ namespace LeanCell
                 }
 
                 LeanCellEvents.FireRobotCycleComplete(currentMU);
-                Debug.Log($"[LeanCell] Robot: placed {currentMU.name} at {PlaceTransform.position}");
+                Debug.Log($"[LeanCell] Robot: placed {currentMU.name} on belt");
             }
 
             currentMU = null;

@@ -272,7 +272,7 @@ namespace LeanCell
 
             // Notify orchestrator that Worker 0 picked up from conveyor
             if (WorkerID == 0 && Orchestrator != null)
-                Orchestrator.NotifyWorker1PickedUp();
+                Orchestrator.NotifyWorker1PickedUp(mu);
 
             // Navigate to assigned station
             if (AssignedStation != null && AssignedStation.WorkPosition != null)
