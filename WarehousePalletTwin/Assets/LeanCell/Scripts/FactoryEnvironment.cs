@@ -17,12 +17,17 @@ namespace LeanCell
         public Color FloorColor = new Color(0.06f, 0.06f, 0.06f);
 
         [Header("Back Wall")]
-        public float WallWidth = 24f;
+        public float WallWidth = 16f;
         public float WallHeight = 4f;
-        public float WallZ = 500f;
+        public float WallZ = 6.63f;
         public float WallCenterX = 5f;
         public Color WallColor = new Color(0.18f, 0.18f, 0.2f);
         public string TitleText = "Lean Digital Twin w/ 7 Waste Detection";
+
+        [Header("Side Wall")]
+        public float SideWallX = 13.03f;
+        public float SideWallZ = -0.39f;
+        public float SideWallDepth = 14f;
 
         [Header("Worker Status Display")]
         public WorkerController[] Workers;
@@ -132,7 +137,7 @@ namespace LeanCell
             var board = GameObject.CreatePrimitive(PrimitiveType.Cube);
             board.name = "WorkerStatusBoard";
             board.transform.SetParent(transform);
-            board.transform.position = new Vector3(WallCenterX - 4f, WallHeight * 0.7f, WallZ - 0.06f);
+            board.transform.position = new Vector3(1f, 2.305f, WallZ - 0.4f);
             board.transform.localScale = new Vector3(5f, 2f, 0.05f);
             Destroy(board.GetComponent<Collider>());
 
@@ -228,13 +233,11 @@ namespace LeanCell
 
         private void CreateSideWall()
         {
-            // Side wall at the far end (after QC station / exit conveyor)
-            float sideX = 14f;
             var sideWall = GameObject.CreatePrimitive(PrimitiveType.Cube);
             sideWall.name = "SideWall";
             sideWall.transform.SetParent(transform);
-            sideWall.transform.position = new Vector3(sideX, WallHeight / 2f, WallZ / 2f);
-            sideWall.transform.localScale = new Vector3(0.1f, WallHeight, WallZ);
+            sideWall.transform.position = new Vector3(SideWallX, WallHeight / 2f, SideWallZ);
+            sideWall.transform.localScale = new Vector3(0.1f, WallHeight, SideWallDepth);
             Destroy(sideWall.GetComponent<Collider>());
 
             var wallMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
