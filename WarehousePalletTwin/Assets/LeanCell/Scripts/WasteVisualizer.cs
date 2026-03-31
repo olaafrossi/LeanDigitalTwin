@@ -31,7 +31,7 @@ namespace LeanCell
         public GameObject LegendPanel;
 
         [Header("Auto-Enable")]
-        public bool AutoEnableAfterFirstProcess = true;
+        public bool AutoEnableAfterFirstProcess = false;
 
         private float currentTransition = 0f;
         private bool transitioningIn;
