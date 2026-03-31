@@ -40,9 +40,22 @@ namespace LeanCell
         public WasteVisualizer WasteVisualizer;
 
         private int activeScenarioIndex = -1;
+        private bool initialized;
 
-        void Start()
+        void OnEnable()
         {
+            Invoke(nameof(Initialize), 0.5f);
+        }
+
+        void OnDisable()
+        {
+            CancelInvoke();
+        }
+
+        private void Initialize()
+        {
+            if (initialized) return;
+            initialized = true;
             // Takt time slider
             if (TaktTimeSlider != null)
             {

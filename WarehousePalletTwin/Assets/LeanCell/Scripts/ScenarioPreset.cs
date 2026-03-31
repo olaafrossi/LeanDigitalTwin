@@ -15,8 +15,8 @@ namespace LeanCell
         public int MaxWIP = 5;
 
         [Header("Per-Station Cycle Times (3 stations)")]
-        public float Station1CycleTime = 25f;
-        public float Station2CycleTime = 25f;
-        public float Station3CycleTime = 25f;
+        public float Station1CycleTime = 10f;
+        public float Station2CycleTime = 10f;
+        public float Station3CycleTime = 10f;
     }
 }

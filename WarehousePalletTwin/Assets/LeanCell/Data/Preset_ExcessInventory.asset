@@ -18,6 +18,6 @@ MonoBehaviour:
   DefectRate: 0
   ActiveWorkerCount: 3
   MaxWIP: 5
-  Station1CycleTime: 25
-  Station2CycleTime: 60
-  Station3CycleTime: 25
+  Station1CycleTime: 10
+  Station2CycleTime: 30
+  Station3CycleTime: 10
