@@ -111,7 +111,7 @@ LeanTwin/Assets/LeanCell/
 
 1. **Clone the repo**
    ```bash
-   git clone https://github.com/YOUR_ORG/LeanDigitalTwin.git
+   git clone https://github.com/olaafrossi/LeanDigitalTwin.git
    ```
 2. **Open in Unity Hub** -- select Unity **6000.4.0f1** or later
 3. **Open the scene** -- `Assets/LeanCell/Scenes/LeanCell.unity`
