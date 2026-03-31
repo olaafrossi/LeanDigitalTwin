@@ -11,10 +11,12 @@ LeanTwin is an interactive simulation of a production cell built in Unity. Drop 
 ---
 
 <!-- Replace the path below with an actual screenshot of the running simulation -->
-![LeanTwin simulation screenshot](docs/images/screenshot.png)
 
+<img src="docs/images/screenshot.png" width="600" alt="demo" />
+
+**Youtube Video**
 <!-- Replace the URL below with your YouTube video link -->
-![Watch LeanCell in action](https://youtu.be/j8qosLLqBK4)
+[![Watch the video](https://img.youtube.com/vi/j8qosLLqBK4/maxresdefault.jpg)](https://youtu.be/j8qosLLqBK4)
 
 ---
 
