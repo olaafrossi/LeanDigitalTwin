@@ -19,7 +19,7 @@ namespace LeanCell
         [Header("Back Wall")]
         public float WallWidth = 16f;
         public float WallHeight = 4f;
-        public float WallZ = 6.63f;
+        public float WallZ = 6.54f;
         public float WallCenterX = 5f;
         public Color WallColor = new Color(0.18f, 0.18f, 0.2f);
         public string TitleText = "Lean Digital Twin w/ 7 Waste Detection";
@@ -137,7 +137,7 @@ namespace LeanCell
             var board = GameObject.CreatePrimitive(PrimitiveType.Cube);
             board.name = "WorkerStatusBoard";
             board.transform.SetParent(transform);
-            board.transform.position = new Vector3(1f, 2.305f, WallZ - 0.4f);
+            board.transform.position = new Vector3(4.81f, 1.44f, WallZ - 0.4f);
             board.transform.localScale = new Vector3(5f, 2f, 0.05f);
             Destroy(board.GetComponent<Collider>());
 
