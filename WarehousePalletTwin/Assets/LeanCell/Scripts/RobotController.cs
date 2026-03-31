@@ -136,15 +136,7 @@ namespace LeanCell
 
         private void AfterGrip()
         {
-            // Check if conveyor is ready before moving to place
-            bool conveyorReady = Orchestrator == null || Orchestrator.CanAcceptConveyorMU();
-            if (!conveyorReady)
-            {
-                currentState = RobotState.WaitingForConveyor;
-                Debug.Log("[LeanCell] Robot: holding MU, conveyor busy");
-                return;
-            }
-
+            // Always move to place — MUs queue on the belt
             Debug.Log("[LeanCell] Robot: moving to place");
             GoToPose(PlacePose);
             currentState = RobotState.MovingToPlace;
