@@ -339,17 +339,20 @@ namespace LeanCell
             }
             else
             {
-                // Place at station OutputPoint for next worker, then return to idle
+                // Keep MU hidden at OutputPoint — next worker grabs by reference
+                // No visible drop, prevents "extra MU" sitting between stations
                 if (mu != null && AssignedStation != null && AssignedStation.OutputPoint != null)
                 {
-                    DropMUAt(mu, AssignedStation.OutputPoint.position);
+                    mu.transform.SetParent(null);
+                    mu.transform.position = AssignedStation.OutputPoint.position;
+                    // Leave MU disabled (GrabMU disabled it) — next worker re-enables on pickup
+                    carriedMU = null;
                 }
                 else
                 {
                     DropMU();
                 }
 
-                // Walk back to idle position
                 if (IdlePosition != null)
                     NavigateTo(IdlePosition.position);
                 EnterState(WorkerState.Idle);
