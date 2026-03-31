@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__UnityMCP__manage_editor",
+      "mcp__UnityMCP__read_console",
+      "mcp__UnityMCP__find_gameobjects",
+      "mcp__UnityMCP__manage_scene",
+      "mcp__UnityMCP__manage_gameobject",
+      "mcp__UnityMCP__refresh_unity",
+      "mcp__UnityMCP__validate_script",
+      "Read(//c/dev/digital-twin-leanring/$LOCALAPPDATA/Unity/**)",
+      "Read(//c/dev/digital-twin-leanring/Local/Unity/**)",
+      "mcp__UnityMCP__manage_camera",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__UnityMCP__manage_components",
+      "Bash(git rm:*)",
+      "Bash(gh repo:*)",
+      "Bash(git remote:*)",
+      "Read(//c/dev/**)",
+      "Bash(mv digital-twin-leanring:*)",
+      "Bash(find /c/Dev/LeanDigitalTwin/LeanTwin/Assets/LeanCell/Scripts -name *.cs -type f)",
+      "Bash(find /c/Dev/LeanDigitalTwin -maxdepth 3 -name README* -o -name readme*)",
+      "Bash(find /c/Dev/LeanDigitalTwin/LeanTwin/Assets/LeanCell/Prefabs -name *.prefab)",
+      "Bash(grep -o \"--- !u!.*\" /c/Dev/LeanDigitalTwin/LeanTwin/Assets/LeanCell/Scenes/LeanCell.unity)"
+    ]
+  }
+}
