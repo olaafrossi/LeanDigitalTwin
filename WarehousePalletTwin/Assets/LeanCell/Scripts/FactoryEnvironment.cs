@@ -15,7 +15,7 @@ namespace LeanCell
         [Header("Back Wall")]
         public float WallWidth = 16f;
         public float WallHeight = 4f;
-        public float WallZ = 3f;
+        public float WallZ = 5f;
         public float WallCenterX = 5f;
         public Color WallColor = new Color(0.18f, 0.18f, 0.2f);
         public string TitleText = "Lean Digital Twin w/ 7 Waste Detection";
@@ -73,8 +73,8 @@ namespace LeanCell
             // Title text
             var textGO = new GameObject("TitleText");
             textGO.transform.SetParent(wall.transform);
-            textGO.transform.localPosition = new Vector3(0, 0.3f, 0.6f);
-            textGO.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            textGO.transform.localPosition = new Vector3(0, 0.3f, -0.6f);
+            textGO.transform.localRotation = Quaternion.identity;
 
             var tm = textGO.AddComponent<TextMesh>();
             tm.text = TitleText;
@@ -89,7 +89,7 @@ namespace LeanCell
             var stripe = GameObject.CreatePrimitive(PrimitiveType.Cube);
             stripe.name = "AccentStripe";
             stripe.transform.SetParent(wall.transform);
-            stripe.transform.localPosition = new Vector3(0, 0.15f, 0.6f);
+            stripe.transform.localPosition = new Vector3(0, 0.15f, -0.6f);
             stripe.transform.localScale = new Vector3(0.7f, 0.005f, 1f);
             Destroy(stripe.GetComponent<Collider>());
 
