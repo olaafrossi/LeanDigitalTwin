@@ -78,6 +78,7 @@ namespace LeanCell
                 agent.speed = 1.2f;
                 agent.acceleration = 2f;
                 agent.angularSpeed = 120f;
+                agent.baseOffset = 0f; // keep worker on the ground plane
 
                 // Try to place agent on NavMesh
                 if (!agent.isOnNavMesh)
