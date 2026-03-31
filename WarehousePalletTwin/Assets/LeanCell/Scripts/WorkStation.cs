@@ -313,7 +313,7 @@ namespace LeanCell
         {
             var labelGO = new GameObject($"Label_{StationName}");
             labelGO.transform.SetParent(transform);
-            labelGO.transform.localPosition = new Vector3(0, 0.75f, -0.5f);
+            labelGO.transform.localPosition = new Vector3(0, 0.35f, -0.5f);
 
             var tm = labelGO.AddComponent<TextMesh>();
             tm.text = StationName;
