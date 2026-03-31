@@ -46,6 +46,9 @@ namespace LeanCell
         [Header("Conveyor Pickup Point")]
         public Transform ConveyorPickupPoint; // where Worker 1 picks from conveyor end
 
+        [Header("Exit Conveyor")]
+        public float ExitConveyorEndX = 12.5f; // X position where MUs fall off the exit belt
+
         [Header("State (Read-Only)")]
         [SerializeField] private bool conveyorBlocked;
         [SerializeField] private int activeMUCount;
@@ -60,6 +63,7 @@ namespace LeanCell
 
         // Conveyor transit — programmatic MU movement
         private System.Collections.Generic.List<realvirtual.MU> conveyorMUs = new System.Collections.Generic.List<realvirtual.MU>();
+        private System.Collections.Generic.List<realvirtual.MU> exitConveyorMUs = new System.Collections.Generic.List<realvirtual.MU>();
         private float conveyorSpeedMs; // m/s (ConveyorSpeed is mm/s)
 
         private bool initialized;
@@ -107,11 +111,12 @@ namespace LeanCell
             Debug.Log("[LeanCell] Orchestrator: initialized, polling sensor every 0.1s");
         }
 
-        /// <summary>Replaces Update() — moves MUs along conveyor, checks arrival.</summary>
+        /// <summary>Replaces Update() — moves MUs along both conveyors, checks arrival.</summary>
         private void PollSensorAndUpdate()
         {
             activeMUCount = muStates.Count;
             MoveConveyorMUs();
+            MoveExitConveyorMUs();
             CheckConveyorSensor();
         }
 
@@ -235,6 +240,47 @@ namespace LeanCell
             conveyorBlocked = false;
             LeanCellEvents.FireConveyorUnblocked();
             Debug.Log($"[LeanCell] Orchestrator: Worker 0 picked up {(pickedMU != null ? pickedMU.name : "null")}, conveyor ready");
+        }
+
+        // === Exit Conveyor ===
+
+        /// <summary>Called by Worker 2 after placing finished MU on exit belt.</summary>
+        public void AddToExitConveyor(realvirtual.MU mu)
+        {
+            exitConveyorMUs.Add(mu);
+            Debug.Log($"[LeanCell] Orchestrator: {mu.name} on exit conveyor");
+        }
+
+        /// <summary>Slide exit conveyor MUs along +X, drop with gravity at the end.</summary>
+        private void MoveExitConveyorMUs()
+        {
+            if (exitConveyorMUs.Count == 0) return;
+
+            float step = conveyorSpeedMs * 0.1f;
+
+            for (int i = exitConveyorMUs.Count - 1; i >= 0; i--)
+            {
+                var mu = exitConveyorMUs[i];
+                if (mu == null) { exitConveyorMUs.RemoveAt(i); continue; }
+
+                var pos = mu.transform.position;
+                pos.x += step;
+                mu.transform.position = pos;
+
+                // Fell off the end — enable gravity and let it drop
+                if (pos.x >= ExitConveyorEndX)
+                {
+                    exitConveyorMUs.RemoveAt(i);
+                    var rb = mu.GetComponentInChildren<Rigidbody>();
+                    if (rb != null)
+                    {
+                        rb.isKinematic = false;
+                        rb.useGravity = true;
+                    }
+                    Debug.Log($"[LeanCell] Orchestrator: {mu.name} fell off exit belt");
+                    Destroy(mu.gameObject, 5f); // clean up after 5s
+                }
+            }
         }
 
         private void StopConveyor()

@@ -364,10 +364,25 @@ namespace LeanCell
             realvirtual.MU mu = carriedMU;
             if (mu != null)
             {
-                DropMU();
+                // Place MU at the exit belt — orchestrator will slide it off the end
+                carriedMU = null;
+                mu.transform.SetParent(null);
+                mu.transform.position = SinkDropPoint.position;
+                mu.transform.rotation = Quaternion.identity;
+
+                foreach (var col in mu.GetComponentsInChildren<Collider>())
+                    col.enabled = true;
+                mu.enabled = true;
+
+                var rb = mu.GetComponentInChildren<Rigidbody>();
+                if (rb != null) rb.isKinematic = true;
+
                 LeanCellEvents.FireMUCompleted(mu);
-                Debug.Log($"[LeanCell] Worker {WorkerID}: delivered {mu.name} to sink");
-                Destroy(mu.gameObject, 1f);
+                Debug.Log($"[LeanCell] Worker {WorkerID}: placed {mu.name} on exit belt");
+
+                // Tell orchestrator to slide it along exit belt
+                if (Orchestrator != null)
+                    Orchestrator.AddToExitConveyor(mu);
             }
 
             // Walk back to idle position
