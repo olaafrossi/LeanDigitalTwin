@@ -2,11 +2,11 @@ using UnityEngine;
 
 namespace LeanCell
 {
-    public enum RobotState { Idle, MovingToPick, Gripping, MovingToPlace, Releasing, WaitingForConveyor }
+    public enum RobotState { Idle, MovingToPick, Gripping, MovingToPlace, Releasing, WaitingAtHome }
 
     /// <summary>
-    /// Controls the Fanuc robot arm via realvirtual axis Drives.
-    /// Swings between PickPose and PlacePose, parenting the MU to the tool tip.
+    /// Controls the Fanuc robot arm by directly overriding axis Drive positions.
+    /// Smoothly interpolates between poses using InvokeRepeating.
     /// </summary>
     public class RobotController : MonoBehaviour
     {
@@ -19,15 +19,15 @@ namespace LeanCell
         public realvirtual.Drive Axis6;
 
         [Header("Tool Tip (parent MU here)")]
-        public Transform ToolTip; // GripperRobot or Axis6 end-effector
+        public Transform ToolTip;
 
         [Header("Poses — axis angles in degrees")]
         public float[] HomePose  = {   0,   0,   0, 0, 0, 0 };
         public float[] PickPose  = {  80, -30,  30, 0, -30, 0 };
         public float[] PlacePose = { -45, -20,  20, 0, -20, 0 };
 
-        [Header("Speeds")]
-        public float AxisSpeed = 40f;
+        [Header("Motion")]
+        public float MoveSpeed = 60f; // degrees per second per axis
         public float GripDelay = 0.5f;
         public float PlaceDelay = 0.5f;
 
@@ -41,31 +41,47 @@ namespace LeanCell
         private realvirtual.MU currentMU;
         private realvirtual.MU pendingMU;
         private realvirtual.Drive[] drives;
+        private float[] currentAngles;
+        private float[] targetAngles;
 
         void OnEnable()
         {
+            drives = new[] { Axis1, Axis2, Axis3, Axis4, Axis5, Axis6 };
+            currentAngles = new float[6];
+            targetAngles = new float[6];
+
+            // Enable position override on all axes
+            foreach (var d in drives)
+            {
+                if (d != null)
+                {
+                    d.PositionOverwrite = true;
+                    d.PositionOverwriteValue = 0;
+                }
+            }
+
             LeanCellEvents.OnMUCreated += HandleMUCreated;
             LeanCellEvents.OnConveyorUnblocked += HandleConveyorUnblocked;
-            Invoke(nameof(Initialize), 0.5f);
+            Debug.Log("[LeanCell] Robot: initialized with position override");
         }
 
         void OnDisable()
         {
             CancelInvoke();
+            foreach (var d in drives)
+                if (d != null) d.PositionOverwrite = false;
             LeanCellEvents.OnMUCreated -= HandleMUCreated;
             LeanCellEvents.OnConveyorUnblocked -= HandleConveyorUnblocked;
         }
 
-        private void Initialize()
-        {
-            drives = new[] { Axis1, Axis2, Axis3, Axis4, Axis5, Axis6 };
-            GoToPose(HomePose);
-            Debug.Log("[LeanCell] Robot: initialized, at home pose");
-        }
-
         private void HandleMUCreated(realvirtual.MU mu)
         {
-            if (currentState != RobotState.Idle)
+            if (currentState != RobotState.Idle && currentState != RobotState.WaitingAtHome)
+            {
+                pendingMU = mu;
+                return;
+            }
+            if (currentState == RobotState.WaitingAtHome)
             {
                 pendingMU = mu;
                 return;
@@ -75,16 +91,15 @@ namespace LeanCell
 
         private void HandleConveyorUnblocked()
         {
-            if (currentState == RobotState.WaitingForConveyor && currentMU != null)
+            if (currentState == RobotState.WaitingAtHome && currentMU != null)
             {
-                Debug.Log($"[LeanCell] Robot: conveyor clear, moving to place");
-                GoToPose(PlacePose);
+                Debug.Log("[LeanCell] Robot: sensor clear, moving to place");
                 currentState = RobotState.MovingToPlace;
-                InvokeRepeating(nameof(PollArrival), 0.1f, 0.1f);
+                StartMoveTo(PlacePose);
             }
         }
 
-        // === Pick-Place State Machine ===
+        // === State Machine ===
 
         private void BeginPick(realvirtual.MU mu)
         {
@@ -92,23 +107,17 @@ namespace LeanCell
             currentState = RobotState.MovingToPick;
             LeanCellEvents.FireRobotCycleStart(mu);
 
-            // Disable MU physics while robot handles it
             var rb = mu.GetComponentInChildren<Rigidbody>();
             if (rb != null) { rb.isKinematic = true; rb.linearVelocity = Vector3.zero; }
             foreach (var col in mu.GetComponentsInChildren<Collider>())
                 col.enabled = false;
 
             Debug.Log($"[LeanCell] Robot: moving to pick {mu.name}");
-            GoToPose(PickPose);
-            InvokeRepeating(nameof(PollArrival), 0.1f, 0.1f);
+            StartMoveTo(PickPose);
         }
 
-        /// <summary>Polls until all axes reach target, then proceeds to next step.</summary>
-        private void PollArrival()
+        private void OnMoveComplete()
         {
-            if (!AllAxesAtTarget()) return;
-            CancelInvoke(nameof(PollArrival));
-
             switch (currentState)
             {
                 case RobotState.MovingToPick:
@@ -116,7 +125,6 @@ namespace LeanCell
                     GripMU();
                     Invoke(nameof(AfterGrip), GripDelay);
                     break;
-
                 case RobotState.MovingToPlace:
                     currentState = RobotState.Releasing;
                     Invoke(nameof(ReleaseMU), PlaceDelay);
@@ -127,7 +135,6 @@ namespace LeanCell
         private void GripMU()
         {
             if (currentMU == null) return;
-            // Parent MU to tool tip so it follows the arm
             currentMU.transform.SetParent(ToolTip);
             currentMU.transform.localPosition = Vector3.zero;
             currentMU.transform.localRotation = Quaternion.identity;
@@ -136,18 +143,24 @@ namespace LeanCell
 
         private void AfterGrip()
         {
-            // Always move to place — MUs queue on the belt
+            bool conveyorReady = Orchestrator == null || Orchestrator.CanAcceptConveyorMU();
+            if (!conveyorReady)
+            {
+                Debug.Log("[LeanCell] Robot: sensor occupied, going home to wait");
+                currentState = RobotState.WaitingAtHome;
+                StartMoveTo(HomePose);
+                return;
+            }
+
             Debug.Log("[LeanCell] Robot: moving to place");
-            GoToPose(PlacePose);
             currentState = RobotState.MovingToPlace;
-            InvokeRepeating(nameof(PollArrival), 0.1f, 0.1f);
+            StartMoveTo(PlacePose);
         }
 
         private void ReleaseMU()
         {
             if (currentMU != null)
             {
-                // Unparent and place at belt position
                 currentMU.transform.SetParent(null);
                 currentMU.transform.position = PlaceTransform.position;
                 currentMU.transform.rotation = Quaternion.identity;
@@ -169,12 +182,9 @@ namespace LeanCell
             }
 
             currentMU = null;
-
-            // Return to home, then go idle
-            GoToPose(HomePose);
             currentState = RobotState.Idle;
+            StartMoveTo(HomePose);
 
-            // Process next MU
             if (pendingMU != null)
             {
                 var next = pendingMU;
@@ -183,28 +193,45 @@ namespace LeanCell
             }
         }
 
-        // === Drive Helpers ===
+        // === Direct Position Override Motion ===
 
-        private void GoToPose(float[] angles)
+        private void StartMoveTo(float[] target)
         {
-            if (drives == null) return;
-            for (int i = 0; i < drives.Length && i < angles.Length; i++)
-            {
-                if (drives[i] == null) continue;
-                drives[i].TargetSpeed = AxisSpeed;
-                drives[i].TargetPosition = angles[i];
-                drives[i].TargetStartMove = true;
-            }
+            CancelInvoke(nameof(StepMotion));
+            System.Array.Copy(target, targetAngles, 6);
+            InvokeRepeating(nameof(StepMotion), 0.02f, 0.02f);
         }
 
-        private bool AllAxesAtTarget()
+        private void StepMotion()
         {
-            if (drives == null) return true;
-            foreach (var d in drives)
+            float maxRemaining = 0f;
+            float step = MoveSpeed * 0.02f; // degrees per tick
+
+            for (int i = 0; i < drives.Length; i++)
             {
-                if (d != null && !d.IsAtTarget) return false;
+                if (drives[i] == null) continue;
+
+                float diff = targetAngles[i] - currentAngles[i];
+                float absDiff = Mathf.Abs(diff);
+                maxRemaining = Mathf.Max(maxRemaining, absDiff);
+
+                if (absDiff <= step)
+                    currentAngles[i] = targetAngles[i];
+                else
+                    currentAngles[i] += Mathf.Sign(diff) * step;
+
+                drives[i].PositionOverwriteValue = currentAngles[i];
             }
-            return true;
+
+            // All axes arrived
+            if (maxRemaining <= MoveSpeed * 0.02f)
+            {
+                CancelInvoke(nameof(StepMotion));
+
+                // Only fire completion for pick/place moves
+                if (currentState == RobotState.MovingToPick || currentState == RobotState.MovingToPlace)
+                    OnMoveComplete();
+            }
         }
     }
 }
