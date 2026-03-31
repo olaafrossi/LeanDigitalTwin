@@ -19,7 +19,7 @@ namespace LeanCell
         [Header("Back Wall")]
         public float WallWidth = 24f;
         public float WallHeight = 4f;
-        public float WallZ = 50f;
+        public float WallZ = 500f;
         public float WallCenterX = 5f;
         public Color WallColor = new Color(0.18f, 0.18f, 0.2f);
         public string TitleText = "Lean Digital Twin w/ 7 Waste Detection";
