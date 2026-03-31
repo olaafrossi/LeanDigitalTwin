@@ -151,7 +151,7 @@ namespace LeanCell
 
             // MU following (was LateUpdate)
             if (carriedMU != null)
-                carriedMU.transform.position = transform.position + Vector3.up * 1.2f;
+                carriedMU.transform.position = transform.position + Vector3.up * 0.7f + transform.forward * 0.5f;
 
             // Update worker dot color
             if (workerDotMat != null)
